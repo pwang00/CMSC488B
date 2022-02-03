@@ -178,7 +178,6 @@ de-sugars into library functions! This also includes foldr/map/etc.
 You'll get a chance to use those further below! 
 
 -}
-
 testLists :: Test
 testLists = "testLists" ~: TestList
   [tminimumMaybe, tstartsWith, tendsWith, ttranspose, tcountSub]
@@ -193,7 +192,11 @@ testLists = "testLists" ~: TestList
 -- >>> minumumMaybe [2,1,3]
 -- Just 1 
 minimumMaybe :: [Int] -> Maybe Int
-minimumMaybe = undefined
+minimumMaybe [] = Nothing
+minimumMaybe [x] = Just x
+minimumMaybe (x:xs) = 
+  let y:ys = xs in
+      if x < y then minimumMaybe (x:ys) else minimumMaybe xs
 
 tminimumMaybe :: Test
 tminimumMaybe =
@@ -268,7 +271,7 @@ ttranspose = "transpose" ~: (assertFailure "testcase for transpose" :: Assertion
 -- 5
 
 countSub :: String -> String -> Int
-countSub = undefined
+countSub "" x = 
 tcountSub :: Test
 tcountSub = "countSub" ~: (assertFailure "testcase for countSub" :: Assertion)
 
