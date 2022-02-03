@@ -1,0 +1,20 @@
+cabal-version:       >=1.10
+name:                hw01
+version:             0.1.0.0
+synopsis:            Homework 1 for CMSC 488B, UMD
+description:         Course introduction: lists and higher-order functions
+bug-reports:         leonidas@umd.edu
+license:             MIT
+license-file:        LICENSE
+maintainer:          leonidas@ud.edu
+-- copyright:
+build-type:          Simple
+extra-source-files:  CHANGELOG.md
+
+executable hw01 
+  main-is:             Main.hs
+  build-depends:       base >=4.14 && <4.15
+                       , HUnit >= 1.6
+  default-language:    Haskell2010
+  ghc-options:         -Wno-type-defaults -fwarn-incomplete-patterns
+
