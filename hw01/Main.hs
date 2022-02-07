@@ -481,6 +481,7 @@ tconcat' = "concat'" ~:
 
 -- x is the head of the list, y is the accumulator, apply f(x, y)
 -- What do we fold over?  I believe we fold over function composition.
+
 startsWith' :: String -> String -> Bool
 startsWith' s1 s2 = foldr (\x y -> x . \z x == y) (\x -> x) 
 tstartsWith' = "tstartsWith'" ~: 
