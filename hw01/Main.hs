@@ -480,10 +480,16 @@ tconcat' = "concat'" ~:
 -- NOTE: use foldr for this one, but it is tricky! (Hint: the value returned by foldr can itself be a function.)
 
 -- x is the head of the list, y is the accumulator, apply f(x, y)
--- What do we fold over?  I believe we fold over function composition.
+-- What do we fold over?
+-- Idea is to check every character of t1 with t2; fold over t1 since we are checking if t1 subset of t2
+
+len :: [a] -> Int
+len [] = 0
+len lst = foldr (\x y -> 1 + y) 0 lst
 
 startsWith' :: String -> String -> Bool
-startsWith' s1 s2 = foldr (\x y -> x . \z x == y) (\x -> x) 
+startsWith' s1 s2 = (len s1) <= (len s2) && (foldr (\x y -> \(z:zs) -> (x == z) && y zs) (\x -> True) s1) s2
+
 tstartsWith' = "tstartsWith'" ~: 
     TestList[ "Hello" `startsWith'` "Hello World!" ~?= True,
               "Hello" `startsWith'` "Wello Horld!" ~?= False,
