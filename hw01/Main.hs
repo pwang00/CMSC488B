@@ -374,7 +374,7 @@ all f (x:xs) = (f x) && (all f xs)
 tall :: Test
 tall = "all" ~:
   TestList [ all odd [1,2,3]      ~?= False,
-             all even [2,3,4]     ~?= True,
+             all even [2,3,4]     ~?= False,
              all odd []           ~?= True ]
 
 -- | `map2 f xs ys` returns the list obtained by applying `f` to
@@ -420,7 +420,7 @@ mapMaybe f (x:xs) =
 tmapMaybe :: Test
 tmapMaybe = "mapMaybe" ~: 
   TestList [ mapMaybe root [0.0, -1.0, 4.0]       ~?=  [0.0,2.0], 
-             mapMaybe root [0.0, -1.0, -4.0]      ~?=  [2.0],
+             mapMaybe root [0.0, -1.0, -4.0]      ~?=  [0.0],
              mapMaybe root []                     ~?=  [] ]
 
 root :: Double -> Maybe Double
@@ -481,14 +481,15 @@ tconcat' = "concat'" ~:
 
 -- x is the head of the list, y is the accumulator, apply f(x, y)
 -- What do we fold over?
--- Idea is to check every character of t1 with t2; fold over t1 since we are checking if t1 subset of t2
+-- Idea is to check every character of t1 with t2; fold over t1 since we are checking if t1 substring of t2
 
 len :: [a] -> Int
 len [] = 0
 len lst = foldr (\x y -> 1 + y) 0 lst
 
 startsWith' :: String -> String -> Bool
-startsWith' s1 s2 = (len s1) <= (len s2) && (foldr (\x y -> \(z:zs) -> (x == z) && y zs) (\x -> True) s1) s2
+startsWith' s1 s2 = (len s1) <= (len s2) && (foldr (\x y ->   
+                      \(z:zs) -> (x == z) && y zs) (\x -> True) s1) s2
 
 tstartsWith' = "tstartsWith'" ~: 
     TestList[ "Hello" `startsWith'` "Hello World!" ~?= True,
@@ -557,7 +558,7 @@ ttails = "tails" ~: TestList [
 -- NOTE: use para for this one!
 
 endsWith' :: String -> String -> Bool
-endsWith' s1 s2 = para (\x y z -> z || (y == s1)) False s2
+endsWith' s1 s2 = s1 == s2 || (para (\x y z -> z || y == s1) False s2)
 
 tendsWith' :: Test
 tendsWith' = "endsWith'" ~: 
@@ -578,7 +579,7 @@ tendsWith' = "endsWith'" ~:
 countSub' :: String -> String -> Int
 countSub' "" "" = 1
 countSub' a "" = 0
-countSub' s1 s2 = para (\x y z -> if startsWith s1 y then 1 + z else z) 1 s2
+countSub' s1 s2 = para (\x y z -> if startsWith' s1 y then 1 + z else z) 1 s2
 tcountSub' :: Test
 tcountSub' = "countSub'" ~: 
   TestList [ countSub' "aa" "aaa"         ~?= 2,
@@ -648,10 +649,31 @@ tappendTree = "appendTree" ~:
 -- >>> invertTree (Branch ("a",True) Empty Empty)
 -- Branch (True,"a") Empty Empty
 
+treei1 :: Tree (Int, String)
+treei1 = (Branch (1, "a") (Branch (2, "b")  Empty Empty) (Branch (3, "c") Empty Empty))
+
+treei2 :: Tree (String, Int)
+treei2 = (Branch ("a", 1) (Branch ("b", 2)  Empty Empty) (Branch ("c", 3) Empty Empty))
+
+treei3 :: Tree (Int, String)
+treei3 = Empty
+
+treei4 :: Tree (String, Int)
+treei4 = Empty
+
+treei5 :: Tree (Int, String)
+treei5 = (Branch (1, "a") (Branch (2, "b")  Empty Empty) (Branch (3, "c") Empty Empty))
+
+treei6 :: Tree (String, Int)
+treei6 = (Branch ("a", 1) (Branch ("b", 2)  Empty Empty) (Branch ("c", 3) Empty Empty))
+
 invertTree :: Tree (a,b) -> Tree (b,a)
 invertTree = mapTree (\(a, b) -> (b, a)) 
 tinvertTree :: Test
-tinvertTree = "invertTree" ~: (assertFailure "testcase for invertTree" :: Assertion)
+tinvertTree = "invertTree" ~: 
+  TestList [ invertTree treei1  ~?= treei2,
+             invertTree treei3  ~?= treei4,
+             invertTree treei5  ~?= treei6 ]
 
 -- `takeWhileTree`, applied to a predicate `p` and a tree `t`,
 -- returns the largest prefix tree of `t` (possibly empty)
@@ -697,7 +719,7 @@ tallTree = "allTree" ~:
                              (Branch 0 Empty Empty)) ~?= False ]
 
 -- WARNING: This one is a bit tricky!  (Hint: use `foldTree` and remember
---  that the value returned by `foldTree` can itself be a function. If you are
+-- that the value returned by `foldTree` can itself be a function. If you are
 -- stuck on this problem, go back to `startsWith` and make sure you understand
 -- how that function can work with a single fold.)
 
@@ -710,9 +732,48 @@ tallTree = "allTree" ~:
 -- >>> map2Tree (+) (Branch 1 Empty (Branch 2 Empty Empty)) (Branch 3 Empty Empty)
 -- Branch 4 Empty Empty
 
+--func :: (a -> b -> b -> b)
+--func Empty _ -> Empty
+--func _ Empty -> Empty
+--func (Branch a x y) (Branch b x2 y2) = 
+
+added :: Tree Int
+added = (Branch 2 (Branch 4 Empty Empty) (Branch 6 Empty Empty))
+
+t1 :: Tree Int
+t1 = Empty
+
+t2 :: Tree Int
+t2 = (Branch 1 Empty Empty)
+
+t3 :: Tree Int
+t3 = (Branch 1 (Branch 2 Empty Empty) Empty)
+
+t4 :: Tree Int
+t4 = (Branch 1 Empty (Branch 2 Empty Empty))
+
+t5 :: Tree String
+t5 = (Branch "a" Empty Empty)
+
+-- x is tree element, y and z are left and right subtree fold results.
+-- Let t1 be of type Tree a and t2 be of type Tree b.
+-- Idea is we fold over Tree a with the to generate a function that when applied to tree b
+-- generates a new branch for every shared node between a and b, containing the value
+-- of f applied to both of the nodes' values.  
+
+tup :: (a -> b -> (a, b))
+tup = \x y -> (x, y)
+
 map2Tree :: (a -> b -> c) -> Tree a -> Tree b -> Tree c
-map2Tree = undefined
+map2Tree f a b = (foldTree foldFunc (\x -> Empty) a) b where
+  foldFunc x y z = aux where
+    aux Empty = Empty
+    aux (Branch w l r) = (Branch (f x w) (y l) (z r))
 
 tmap2Tree :: Test
-tmap2Tree = "map2Tree" ~: (assertFailure "testcase for map2Tree" :: Assertion)
+tmap2Tree = "map2Tree" ~: 
+  TestList [ map2Tree (+) tree1 tree1 ~?= added,
+             map2Tree (+) t1 t2       ~?= Empty,
+             map2Tree (+) t3 t4       ~?= (Branch 2 Empty Empty),
+             map2Tree (tup) t2 t5     ~?= (Branch (1, "a") Empty Empty) ]
 

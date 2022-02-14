@@ -1,0 +1,31 @@
+cabal-version:       >=1.10
+name:                hw02
+version:             0.1.0.0
+synopsis:            Homework 2 for CMSC 488B, UMD
+description:         Sorting with Monoids and Foldable
+bug-reports:         leonidas@umd.edu
+license:             MIT
+license-file:        LICENSE
+maintainer:          leonidas@ud.edu
+-- copyright:
+build-type:          Simple
+extra-source-files:  CHANGELOG.md
+
+library
+  exposed-modules:     SortedList, MergeSort
+  hs-source-dirs:      lib
+  build-depends:       base >=4.14 && <4.15
+                       , HUnit >= 1.6
+  default-language:    Haskell2010
+  ghc-options:         -Wno-type-defaults -fwarn-incomplete-patterns
+                     
+executable hw01 
+  main-is:             Test.hs
+  hs-source-dirs:      app
+  build-depends:       base >=4.14 && <4.15
+                       , HUnit >= 1.6
+                       , hw02
+  default-language:    Haskell2010
+  ghc-options:         -Wno-type-defaults -fwarn-incomplete-patterns
+                       -main-is Test
+
