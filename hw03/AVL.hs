@@ -116,10 +116,9 @@ Of course, `AVL` trees must be binary search trees.
 
 -- | The tree is a binary search tree
 isBST :: Ord a => AVL a -> Bool
-isBST tr = sorted $ elements tr where
-    sorted [] = True
-    sorted [x] = True
-    sorted (x:y:xs) = x <= y && sorted (y:xs) 
+isBST E = True
+isBST tr = all (const True) $ zipWith (>=) (x:xs) xs where
+    (x:xs) = elements tr
 
 {- 
 And they must satisfy the AVL invariants about height and balance.
