@@ -1,6 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-} 
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{-
+Name: Philip Wang
+Date: 02/15/2022
+Assignment 2
+-}
+
 {- 
 Sorted Lists
 ============

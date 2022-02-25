@@ -1,6 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-} 
 {-# LANGUAGE ScopedTypeVariables #-}
 
+{-
+Name: Philip Wang
+Date: 02/15/2022
+Assignment 2
+-}
+
 {- 
 Merge Sort
 ==========
@@ -218,7 +224,7 @@ instance Foldable DivideList where
       (DivideList [], DivideList []) -> mempty
       (as, DivideList []) -> foldMap f as
       (DivideList [], bs) -> foldMap f bs
-      (DivideList [a], DivideList [b]) -> (f a) <> (f b) 
+      (DivideList [a], DivideList [b]) -> (f a) <> (f b)
       (DivideList [a], bs) -> (f a) <> (foldMap f bs) 
       (as, DivideList [b]) -> (foldMap f as) <> (f b) 
       (as, bs) -> (foldMap f as) <> (foldMap f bs)
