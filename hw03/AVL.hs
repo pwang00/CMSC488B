@@ -14,7 +14,7 @@ module AVL (AVL(..),
             good1,good2,good3,bad1,bad2,bad3,main,rebalance,height,balanceFactor)
    where
 
-import Prelude hiding (zipWith,zipWith3)
+import Prelude hiding (zipWith3)
 import Test.QuickCheck hiding (elements)
 import qualified Data.Foldable as Foldable
 import qualified Data.List
@@ -117,7 +117,7 @@ Of course, `AVL` trees must be binary search trees.
 -- | The tree is a binary search tree
 isBST :: Ord a => AVL a -> Bool
 isBST E = True
-isBST tr = all (const True) $ zipWith (>=) (x:xs) xs where
+isBST tr = all (== True) $ zipWith (<) (x:xs) xs where
     (x:xs) = elements tr
 
 {- 
@@ -241,7 +241,7 @@ good2 :: AVL Int
 good2 = (N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 6 E))
 
 good3 :: AVL Int
-good3 = undefined
+good3 = (N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 6 E))
 
 {- 
 ... and some others that do not...
@@ -254,7 +254,7 @@ bad2 :: AVL Int
 bad2 = (N 3 (N 1 E 0 E) 0 (N 1 (N 1 E 0 E) 0 E))
 
 bad3 :: AVL Int
-bad3 = undefined
+bad3 = (N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 4 E))
 
 {- 
 Make sure that you do NOT change the names or type annotations for these
@@ -269,8 +269,15 @@ Now write a testing function that makes sure that the good trees are valid AVL t
 and the bad trees fail at least one property.
 -}
 
+-- v_i are good trees
+-- w_i are bad trees
 testProps :: IO ()
-testProps = undefined
+testProps = do
+    v1 <- valid good1
+    v2 <- valid good2
+    v3 <- valid good3
+    putStrLn "Good trees passed all properties."
+    
 
 
 -- 5
