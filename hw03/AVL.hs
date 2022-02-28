@@ -18,7 +18,9 @@ import Prelude hiding (zipWith3)
 import Test.QuickCheck hiding (elements)
 import qualified Data.Foldable as Foldable
 import qualified Data.List
-
+import Control.Monad
+import Data.Maybe (Maybe(Nothing))
+import GHC.Base (undefined)
 
 {- 
 The goal this homework is to implement a purely functional
@@ -117,8 +119,8 @@ Of course, `AVL` trees must be binary search trees.
 -- | The tree is a binary search tree
 isBST :: Ord a => AVL a -> Bool
 isBST E = True
-isBST tr = all (== True) $ zipWith (<) (x:xs) xs where
-    (x:xs) = elements tr
+isBST tr = all (== True) $ zipWith (<) lst xs where
+    lst@(x:xs) = elements tr
 
 {- 
 And they must satisfy the AVL invariants about height and balance.
@@ -126,20 +128,16 @@ And they must satisfy the AVL invariants about height and balance.
 
 -- | The height stored at each node is correctly calculated.
 heightInvariant :: AVL a -> Bool
-heightInvariant tr = 
-    case tr of 
-        E -> height tr == 0
-        (N h l _ r) -> 
-            h == 1 + max (height l) (height r) && heightInvariant l && heightInvariant r
+heightInvariant E = True
+heightInvariant (N h l _ r) = 
+    h == 1 + max (height l) (height r) && heightInvariant l && heightInvariant r
     
 
 -- | The balance factor at each node is between -1 and +1.
 balanceInvariant :: AVL a -> Bool
-balanceInvariant tr =  
-    case tr of 
-        E -> True
-        (N h l _ r) ->
-            (abs (height l) - (height r)) <= 1 && balanceInvariant l && balanceInvariant r
+balanceInvariant E = True
+balanceInvariant (N h l _ r) =
+    abs (height l - height r) <= 1 && balanceInvariant l && balanceInvariant r
 
 {- 
 We can put these invariants together with a validity function:
@@ -169,9 +167,16 @@ those operations yet.
 
 instance (Ord a, Arbitrary a) => Arbitrary (AVL a) where
     arbitrary :: Gen (AVL a)
-    arbitrary = undefined
+    arbitrary = sized gen where 
+        gen :: Int -> Gen (AVL a)
+        gen 0 = return E
+        gen n = do
+            a <- arbitrary
+            c <- gen (n `div` 2)
+            return $ avlInsert a c
+
     shrink :: AVL a -> [AVL a]
-    shrink = undefined
+    shrink tr = [ foldr insert E y | y <- shrink $ elements tr ] 
 
 {- 
 We can also define validity properties for the other operations.
@@ -222,7 +227,7 @@ avlEmpty = E
 -- | Determine whether an element is contained within the tree
 avlMember :: Ord e => e -> AVL e -> Bool
 avlMember e E = False
-avlMember e (N h l v r) = e == v || avlMember e l || avlMember e r 
+avlMember e (N h l v r) = e == v || if e < v then avlMember e l else avlMember e r 
 
 -- 4
 
@@ -235,26 +240,26 @@ later---some that obey all of the AVL invariants...
 -}
 
 good1 :: AVL Int
-good1 = (N 1 E 0 E)
+good1 = N 1 E 0 E
 
 good2 :: AVL Int
-good2 = (N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 6 E))
+good2 = N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 6 E)
 
 good3 :: AVL Int
-good3 = (N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 6 E))
+good3 = N 3 (N 1 E 2 E) 4 (N 2 (N 1 E 5 E) 7 E)
 
 {- 
 ... and some others that do not...
 -}
 
 bad1 :: AVL Int
-bad1 = (N 2 E 0 E)
+bad1 = N 2 E 0 E
 
 bad2 :: AVL Int
-bad2 = (N 3 (N 1 E 0 E) 0 (N 1 (N 1 E 0 E) 0 E))
+bad2 = N 3 (N 1 E 0 E) 0 (N 1 (N 1 E 0 E) 0 E)
 
 bad3 :: AVL Int
-bad3 = (N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 4 E))
+bad3 = N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 4 E)
 
 {- 
 Make sure that you do NOT change the names or type annotations for these
@@ -270,14 +275,15 @@ and the bad trees fail at least one property.
 -}
 
 -- v_i are good trees
--- w_i are bad trees
+-- b_i are bad trees
 testProps :: IO ()
 testProps = do
-    v1 <- valid good1
-    v2 <- valid good2
-    v3 <- valid good3
-    putStrLn "Good trees passed all properties."
-    
+    putStrLn $ "good1 is valid: " ++ (show $ valid good1)
+    putStrLn $ "good2 is valid: " ++ (show $ valid good2)
+    putStrLn $ "good3 is valid: " ++ (show $ valid good3)
+    putStrLn $ "bad1 is valid: " ++ (show $ valid bad1)
+    putStrLn $ "bad2 is valid: " ++ (show $ valid bad2)
+    putStrLn $ "bad3 is valid: " ++ (show $ valid bad3)
 
 
 -- 5
@@ -310,12 +316,33 @@ trees correctly.
 
 
 -- | Rotate an AVL tree
+-- Considers the 4 possible cases of an AVL tree where the balance factor is not in {-1, 0, 1}.
+-- Namely LL, RR, LR, RL inbalances.  fixHeight recomputes the height for the nodes after the rebalance.
+
 rebalance :: (Ord e) => AVL e -> AVL e
-rebalance = undefined
+rebalance E = E
+rebalance tr = 
+    case tr of 
+        N _ l@(N _ l2@(N _ l3 v3 r3) v2 r2) v r | map bfc [tr, l] == [2, 1] ->
+            let (h, hl, hr) = fixHeight (l3, r3, r2, r) in
+            N h (N hl l3 v3 r3) v2 (N hr r2 v r)
+        N _ l v r@(N _ l2 v2 r2@(N _ l3 v3 r3)) | map bfc [tr, r] == [-2, -1] -> 
+            let (h, hl, hr) = fixHeight (l, l2, l3, r3) in
+            N h (N hl l v l2) v2 (N hr l3 v3 r3)
+        N _ l v r@(N _ l2@(N _ l3 v3 r3) v2 r2) | map bfc [tr, r] == [-2, 1] ->
+            let (h, hl, hr) = fixHeight (l, l3, r3, r2) in
+            N h (N hl l v l3) v3 (N hr r3 v2 r2)
+        N _ l@(N _ l2 v2 r2@(N _ l3 v3 r3)) v r | map bfc [tr, l] == [2, -1] ->
+            let (h, hl, hr) = fixHeight (l2, l3, r3, r) in
+            N h (N hl l2 v2 l3) v3 (N hr r3 v r) 
+        _ -> let (N h l v r) = tr in N (1 + max (height l) (height r)) l v r 
 
-
-
-
+        where 
+            bfc = balanceFactor
+            fixHeight (w, x, y, z) = 
+                let hl = 1 + max (height w) (height x) in
+                let hr = 1 + max (height y) (height z) in
+                (1 + max hl hr, hl, hr)
  -- 6
 
 {- 
@@ -331,7 +358,13 @@ the resulting tree is an AVL tree.
 
 -- | Insert a new element into a tree, returning a new tree
 avlInsert :: (Ord e) => e -> AVL e -> AVL e
-avlInsert = undefined
+avlInsert e E = N 1 E e E
+avlInsert e (N h l v r) 
+    | e < v = rebalance $ N h (avlInsert e l) v r
+    | e > v = rebalance $ N h l v (avlInsert e r)
+    | otherwise = N h l v r
+
+
 
 -- 7
 
@@ -347,7 +380,26 @@ correctly and preserves the AVL tree properties.
 
 -- | Delete the provided element from the tree
 avlDelete :: Ord e => e -> AVL e -> AVL e
-avlDelete = undefined
+avlDelete e E = E
+avlDelete e (N h l v r) 
+    | e < v = rebalance $ N h (avlDelete e l) v r
+    | e > v = rebalance $ N h l v (avlDelete e r)
+    | otherwise = 
+        case (l, r) of 
+            (E, E) -> E -- is leaf node
+            (N h' l' v' r', E) -> rebalance $ N h' l' v' r'
+            (E, N h' l' v' r') -> rebalance $ N h' l' v' r'
+            (l, r) -> let (N h' l' v r') = inOrderSucc r in rebalance $ N h' l v r'
+    where 
+        inOrderSucc E = N h l v r
+        inOrderSucc tr@(N h E v _) = tr
+        inOrderSucc (N h l v r) = inOrderSucc l
+
+
+        
+
+ 
+            
 
 
 
