@@ -1,6 +1,8 @@
 {- 
 Purely Functional Data structures
 =================================
+Name: Philip Wang
+Date: 2/28/22
 -}
 
 {-# LANGUAGE DeriveFoldable #-}
@@ -21,6 +23,7 @@ import qualified Data.List
 import Control.Monad
 import Data.Maybe (Maybe(Nothing))
 import GHC.Base (undefined)
+import Data.Bool (Bool)
 
 {- 
 The goal this homework is to implement a purely functional
@@ -208,8 +211,37 @@ instance (Ord a) => Eq (AVL a) where
 -- QuickCheck properties for `empty`, `insert`, `delete`, and
 -- `member`.
 
+-- Tree is empty -> no elements in its traversal
+prop_Empty :: Bool
+prop_Empty = null (elements E :: [a]) 
 
+-- Insert in tree preserves sorted order
+prop_Insert1 :: (Ord a) => a -> AVL a -> Bool
+prop_Insert1 n tr = insert n tr == foldr insert E (n : elements tr)
 
+-- Element shows up in tree after insertion
+prop_Insert2 :: (Ord a) => a -> AVL a -> Bool
+prop_Insert2 n tr = member n $ insert n tr
+
+-- Inserting twice is same as inserting once
+prop_Insert4 :: (Ord a) => a -> AVL a -> Bool
+prop_Insert4 n tr = insert n (insert n tr) == insert n tr
+
+-- Empty tree should not contain anything
+prop_Member1 :: (Ord a) => a -> AVL a -> Bool
+prop_Member1 n tr = member n (insert n tr) 
+
+-- Element in tree -> element in in order traversal
+prop_Member2 :: (Ord a) => a -> AVL a -> Property
+prop_Member2 n tr = member n (insert n tr) ==> n `elem` elements (insert n tr)
+
+-- Deleting element from bst means it should no longer have element as member
+prop_Delete1 :: (Ord a) => a -> AVL a -> Bool
+prop_Delete1 n tr = not $ member n (delete n tr) 
+
+-- Deleting element twice from bst is same as deleting it once
+prop_Delete2 :: (Ord a) => a -> AVL a -> Bool
+prop_Delete2 n tr = delete n (delete n tr) == delete n tr 
 -- 3
 
 {- 
@@ -246,7 +278,7 @@ good2 :: AVL Int
 good2 = N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 6 E)
 
 good3 :: AVL Int
-good3 = N 3 (N 1 E 2 E) 4 (N 2 (N 1 E 5 E) 7 E)
+good3 = N 3 (N 2 (N 1 E (-11) E) (-4) (N 1 E 5 E)) 12 (N 1 E 15 E)
 
 {- 
 ... and some others that do not...
@@ -259,7 +291,7 @@ bad2 :: AVL Int
 bad2 = N 3 (N 1 E 0 E) 0 (N 1 (N 1 E 0 E) 0 E)
 
 bad3 :: AVL Int
-bad3 = N 3 (N 1 E 3 E) 4 (N 2 (N 1 E 5 E) 4 E)
+bad3 = N 3 (N 2 (N 1 E (-11) E) (-4) (N 1 E 5 E)) 1 (N 1 E 15 E)
 
 {- 
 Make sure that you do NOT change the names or type annotations for these
@@ -336,7 +368,6 @@ rebalance tr =
             let (h, hl, hr) = fixHeight (l2, l3, r3, r) in
             N h (N hl l2 v2 l3) v3 (N hr r3 v r) 
         _ -> let (N h l v r) = tr in N (1 + max (height l) (height r)) l v r 
-
         where 
             bfc = balanceFactor
             fixHeight (w, x, y, z) = 
