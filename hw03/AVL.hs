@@ -216,32 +216,32 @@ prop_Empty :: Bool
 prop_Empty = null (elements E :: [a]) 
 
 -- Insert in tree preserves sorted order
-prop_Insert1 :: (Ord a) => a -> AVL a -> Bool
-prop_Insert1 n tr = insert n tr == foldr insert E (n : elements tr)
+prop_Insert1 :: (Ord a) => a -> AVL a -> Property
+prop_Insert1 n tr = valid tr ==> insert n tr == foldr insert E (n : elements tr)
 
 -- Element shows up in tree after insertion
-prop_Insert2 :: (Ord a) => a -> AVL a -> Bool
-prop_Insert2 n tr = member n $ insert n tr
+prop_Insert2 :: (Ord a) => a -> AVL a -> Property
+prop_Insert2 n tr = valid tr ==> member n $ insert n tr
 
 -- Inserting twice is same as inserting once
-prop_Insert4 :: (Ord a) => a -> AVL a -> Bool
-prop_Insert4 n tr = insert n (insert n tr) == insert n tr
+prop_Insert4 :: (Ord a) => a -> AVL a -> Property
+prop_Insert4 n tr = valid tr ==> insert n (insert n tr) == insert n tr
 
 -- Empty tree should not contain anything
-prop_Member1 :: (Ord a) => a -> AVL a -> Bool
-prop_Member1 n tr = member n (insert n tr) 
+prop_Member1 :: (Ord a) => a -> AVL a -> Property
+prop_Member1 n tr = valid tr ==> member n $ insert n tr 
 
 -- Element in tree -> element in in order traversal
 prop_Member2 :: (Ord a) => a -> AVL a -> Property
-prop_Member2 n tr = member n (insert n tr) ==> n `elem` elements (insert n tr)
+prop_Member2 n tr = valid tr ==> member n (insert n tr) ==> n `elem` elements (insert n tr)
 
 -- Deleting element from bst means it should no longer have element as member
-prop_Delete1 :: (Ord a) => a -> AVL a -> Bool
-prop_Delete1 n tr = not $ member n (delete n tr) 
+prop_Delete1 :: (Ord a) => a -> AVL a -> Property
+prop_Delete1 n tr = valid tr ==> not $ member n (delete n tr) 
 
 -- Deleting element twice from bst is same as deleting it once
-prop_Delete2 :: (Ord a) => a -> AVL a -> Bool
-prop_Delete2 n tr = delete n (delete n tr) == delete n tr 
+prop_Delete2 :: (Ord a) => a -> AVL a -> Property
+prop_Delete2 n tr = valid tr ==> delete n (delete n tr) == delete n tr 
 -- 3
 
 {- 
