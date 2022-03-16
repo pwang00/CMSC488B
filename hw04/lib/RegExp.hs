@@ -221,7 +221,8 @@ implementations.)
 -- >>> -- split "abc" 
 -- [("","abc"),("a","bc"),("ab","c"),("abc","")]
 split :: [a] -> [([a], [a])]
-split str = [splitAt x str | x <- [0 .. length str]]
+split [] = [([], [])]
+split str@(x:xs) = ([], str) : [(x:a, b) | (a, b) <- split xs]
 
 -- | all decompositions of a string into multi-part (nonempty) pieces
 -- 
@@ -270,9 +271,11 @@ prop_partsLength = forAll smallLists $ \ l ->
     predNat n = if n <= 0 then 0 else n - 1
 
 -- Add a QuickCheck property for parts
-prop_parts :: Property
-prop_parts = undefined
+-- Originally had prop_parts = forAll smallLists (\l -> all (== l) (map concat (parts l)))
+-- But VSCode Haskell Linter is actually kind of OP
 
+prop_parts :: Property
+prop_parts = forAll smallLists (\l -> all ((== l) . concat) (parts l))
 
 
 {- 
@@ -286,9 +289,21 @@ your implementation.
 -}
 
 -- | Decide whether the given regexp matches the given string
+testA :: RegExp
+testA = Char $ Set.fromList "A"
+
+testB :: RegExp
+testB = Char $ Set.fromList "B"
 
 accept :: RegExp -> String -> Bool
-accept _           _ = undefined
+accept regexp string =
+  case regexp of
+    Append e1 e2 -> length [(x, y) | (x, y) <- split string, accept e1 x, accept e2 y] == 1
+    Empty -> string == ""
+    Char set -> [x | x <- Set.toList set, [x] == string] /= []
+    Void -> False
+    Alt e1 e2 -> accept e1 string || accept e2 string
+    Star e -> [x | x <- parts string, all (accept e) x] /= []
 
 
 testAccept :: Test
