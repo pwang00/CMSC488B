@@ -556,7 +556,14 @@ implementation.
 
 -- | `nullable r` return `True` when `r` could match the empty string
 nullable :: RegExp -> Bool
-nullable _ = undefined
+nullable regexp = case regexp of
+  Empty -> True
+  Void -> False
+  Char set -> null (Set.toList set)
+  Alt e1 e2 -> nullable e1 || nullable e2
+  Append e1 e2 -> nullable e1 && nullable e2
+  Star _ -> True
+
 
 -- |  Takes a regular expression `r` and a character `c`,
 -- and computes a new regular expression that accepts word `w`
