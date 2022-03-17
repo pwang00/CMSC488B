@@ -399,7 +399,9 @@ instance Arbitrary RegExp where
           (3, elements [Void, Empty, Char $ Set.fromList chars])]
 
   shrink :: RegExp -> [RegExp]
-  shrink = undefined
+  shrink Empty = [Empty]
+  shrink Void = [Void]
+
 
 ----------------------------------------------------
 
