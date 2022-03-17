@@ -18,12 +18,14 @@ if desired.  However, our solution works with no additional imports.
 import qualified Data.Maybe as Maybe
 import qualified Data.List  as List
 import qualified Control.Monad as Monad
+import Control.Monad (liftM, liftM2, liftM3)
 -- Haskell's standard implementation of Finite Sets.
 import Data.Set (Set)
 import qualified Data.Set as Set
 -- Testing
 import Test.HUnit hiding (State)
 import Test.QuickCheck
+import GHC.Generics ((:+:)(R1))
 
 
 
@@ -365,7 +367,8 @@ cause a large blow-up when quickChecking `prop_accept`.
 
 -- | Create a generator for the strings accepted by this RegExp (if any)
 genRegExpString :: RegExp -> Maybe (Gen String)
-genRegExpString r = undefined
+genRegExpString Void = Nothing
+
 
 {- 
 Now complete an `Arbitrary` instance for regular expressions to test this
@@ -375,8 +378,28 @@ Make sure that you also implement the 'shrink' function too.
 -}
 
 instance Arbitrary RegExp where
-   arbitrary = undefined
-   shrink = undefined
+  arbitrary :: Gen RegExp
+  arbitrary = sized gen where
+     gen :: Int -> Gen RegExp
+     gen 0 = frequency
+      [(1, return Void),
+       (1, return Empty),
+       (2, return $ Char $ Set.fromList (take 4 sample' $ choose ('a', 'd')))]
+     
+     gen n | n >= 8 = frequency
+      [(1, liftM2 Append (gen $ n `div` 2) (gen $ n `div` 2)),
+       (1, Star <$> gen (n `div` 2)),
+       (1, liftM2 Alt (gen $ n `div` 2) (gen $ n `div` 2)),
+       (1, return $ Char $ Set.fromList "abcd")]
+
+     gen n = frequency
+      [(1, liftM2 Append (gen $ n `div` 2) (gen $ n `div` 2)),
+       (1, Append (Char $ Set.fromList "abcd") <$> gen (n `div` 2)),
+       (1, liftM2 Alt (gen $ n `div` 2) (gen $ n `div` 2)),
+       (1, Star <$> gen (n `div` 2))]
+
+  shrink :: RegExp -> [RegExp]
+  shrink = 
 
 ----------------------------------------------------
 
@@ -496,7 +519,11 @@ Algebra](https://en.wikipedia.org/wiki/Kleene_algebra).)
 
 -- | Smart constructor for `Append`
 append :: RegExp -> RegExp -> RegExp
-append = undefined
+append r1 r2 | r1 == Empty && r2 == Empty = Empty
+append r1 r2 | isEmpty r1 = r2
+append r1 r2 | isEmpty r2 = r1
+append r1 r2 | isVoid r1 || isVoid r2 = Void
+append r1 r2 = Append r1 r2
 
 prop_append :: RegExp -> RegExp -> Property
 prop_append r1 r2 = rs /= Append r1 r2 ==> rs %==% Append r1 r2 where
@@ -504,7 +531,10 @@ prop_append r1 r2 = rs /= Append r1 r2 ==> rs %==% Append r1 r2 where
 
 -- | Smart constructor for `Alt`
 alt :: RegExp -> RegExp -> RegExp
-alt = undefined
+alt r1 r2 | isEmpty r1 && isEmpty r2 = Empty
+alt r1 r2 | isVoid r1 = r2
+alt r1 r2 | isVoid r2 = r1
+alt r1 r2 = Alt r1 r2
 {- 
 >
 -}
@@ -570,7 +600,14 @@ nullable regexp = case regexp of
 -- if `cw` is accepted by `r`. Make sure to use the smart constructors
 -- above when you construct the new `RegExp`
 deriv :: RegExp -> Char -> RegExp
-deriv _ _ = undefined
+deriv regexp c = case regexp of
+  Empty -> Void
+  Void -> Void
+  Char set -> if [x | x <- Set.toList set, x == c] /= [] then Empty else Void
+  Alt r1 r2 -> alt (deriv r1 c) (deriv r2 c)
+  Append r1 r2 -> if nullable r1 then
+    alt (append (deriv r1 c) r2) (deriv r2 c) else append (deriv r1 c) r2
+  Star r1 -> append (deriv r1 c) (star r1)
 
 {- 
 For example, if `r` is the literal character `c`, then the derivative of `r`
