@@ -381,25 +381,25 @@ instance Arbitrary RegExp where
   arbitrary :: Gen RegExp
   arbitrary = sized gen where
      gen :: Int -> Gen RegExp
-     gen 0 = frequency
-      [(1, return Void),
-       (1, return Empty),
-       (2, return $ Char $ Set.fromList (take 4 sample' $ choose ('a', 'd')))]
-     
-     gen n | n >= 8 = frequency
-      [(1, liftM2 Append (gen $ n `div` 2) (gen $ n `div` 2)),
-       (1, Star <$> gen (n `div` 2)),
-       (1, liftM2 Alt (gen $ n `div` 2) (gen $ n `div` 2)),
-       (1, return $ Char $ Set.fromList "abcd")]
+     gen 0 = 
+      do
+        chars <- sublistOf "abcd"
+        frequency
+          [(1, elements [Void, Empty]),
+           (2, return $ Char (Set.fromList chars))]
 
-     gen n = frequency
-      [(1, liftM2 Append (gen $ n `div` 2) (gen $ n `div` 2)),
-       (1, Append (Char $ Set.fromList "abcd") <$> gen (n `div` 2)),
-       (1, liftM2 Alt (gen $ n `div` 2) (gen $ n `div` 2)),
-       (1, Star <$> gen (n `div` 2))]
+     gen n = 
+      do
+        chars <- sublistOf "abcd"
+        frequency
+          [(2, liftM2 Append (gen $ n `div` 4) (gen $ n `div` 4)),
+          (2, Append (Char $ Set.fromList chars) <$> gen (n `div` 4)),
+          (2, liftM2 Alt (gen $ n `div` 4) (gen $ n `div` 4)),
+          (2, Star <$> gen (n `div` 4)),
+          (3, elements [Void, Empty, Char $ Set.fromList chars])]
 
   shrink :: RegExp -> [RegExp]
-  shrink = 
+  shrink = undefined
 
 ----------------------------------------------------
 
