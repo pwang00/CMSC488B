@@ -26,6 +26,7 @@ import qualified Data.Set as Set
 import Test.HUnit hiding (State)
 import Test.QuickCheck
 import GHC.Generics ((:+:)(R1))
+import Test.QuickCheck.Property (Prop)
 
 
 
@@ -300,12 +301,12 @@ testB = Char $ Set.fromList "B"
 accept :: RegExp -> String -> Bool
 accept regexp string =
   case regexp of
-    Append e1 e2 -> length [(x, y) | (x, y) <- split string, accept e1 x, accept e2 y] == 1
+    Append e1 e2 -> or [accept e1 x && accept e2 y | (x, y) <- split string]
     Empty -> string == ""
-    Char set -> [x | x <- Set.toList set, [x] == string] /= []
+    Char set -> (length string == 1) && (let [x] = string in Set.member x set)
     Void -> False
     Alt e1 e2 -> accept e1 string || accept e2 string
-    Star e -> [x | x <- parts string, all (accept e) x] /= []
+    Star e -> or [all (accept e) x | x <- parts string]
 
 
 testAccept :: Test
@@ -367,7 +368,31 @@ cause a large blow-up when quickChecking `prop_accept`.
 
 -- | Create a generator for the strings accepted by this RegExp (if any)
 genRegExpString :: RegExp -> Maybe (Gen String)
-genRegExpString Void = Nothing
+genRegExpString regexp = case regexp of
+  Void -> Nothing
+  Empty -> Just $ return ""
+  Char set | null (Set.toList set) -> Nothing
+  Char set -> Just (elements ((:"") <$> Set.toList set))
+  Append r1 r2 -> do
+    x <- genRegExpString r1
+    y <- genRegExpString r2
+    return $ liftM2 (++) x y
+  Alt r1 r2 -> do
+    case (isVoid r1, isVoid r2) of
+      (False, True) -> genRegExpString r1
+      (True, False) -> genRegExpString r2
+      _ -> do
+              x <- genRegExpString r1
+              y <- genRegExpString r2
+              return $ oneof [x, y]
+  Star r1 | isVoid r1 -> Just $ return ""
+  Star r1 -> do
+    str <- genRegExpString r1
+    return $ do
+      n <- choose (0, 2)
+      concat . replicate n <$> str
+
+
 
 
 {- 
@@ -381,26 +406,24 @@ instance Arbitrary RegExp where
   arbitrary :: Gen RegExp
   arbitrary = sized gen where
      gen :: Int -> Gen RegExp
-     gen 0 = 
+     gen n =
       do
         chars <- sublistOf "abcd"
         frequency
-          [(1, elements [Void, Empty]),
-           (2, return $ Char (Set.fromList chars))]
-
-     gen n = 
-      do
-        chars <- sublistOf "abcd"
-        frequency
-          [(2, liftM2 Append (gen $ n `div` 4) (gen $ n `div` 4)),
-          (2, Append (Char $ Set.fromList chars) <$> gen (n `div` 4)),
-          (2, liftM2 Alt (gen $ n `div` 4) (gen $ n `div` 4)),
-          (2, Star <$> gen (n `div` 4)),
-          (3, elements [Void, Empty, Char $ Set.fromList chars])]
+          [(1, elements [Void, Empty, Char $ Set.fromList chars]),
+          (n, frequency
+                [(1, liftM2 Append (gen $ n `div` 4) (gen $ n `div` 4)),
+                (2, Append (Char $ Set.fromList chars) <$> gen (n `div` 4)),
+                (2, liftM2 Alt (gen $ n `div` 4) (gen $ n `div` 4)),
+                (2, Star <$> gen (n `div` 4))])]
 
   shrink :: RegExp -> [RegExp]
-  shrink Empty = [Empty]
-  shrink Void = [Void]
+  shrink Empty = []
+  shrink Void = []
+  shrink (Append r1 r2) = shrink (Alt r1 r2)
+  shrink (Alt r1 r2) = r1 : r2 : shrink r1 ++ shrink r2
+  shrink (Star r1) = r1 : shrink r1
+  shrink (Char set) = []
 
 
 ----------------------------------------------------
@@ -605,7 +628,7 @@ deriv :: RegExp -> Char -> RegExp
 deriv regexp c = case regexp of
   Empty -> Void
   Void -> Void
-  Char set -> if [x | x <- Set.toList set, x == c] /= [] then Empty else Void
+  Char set -> if Set.member c set then Empty else Void
   Alt r1 r2 -> alt (deriv r1 c) (deriv r2 c)
   Append r1 r2 -> if nullable r1 then
     alt (append (deriv r1 c) r2) (deriv r2 c) else append (deriv r1 c) r2
@@ -628,8 +651,12 @@ regular expression. The expression has only to be evaluated as much as
 
 -- Don't forget to test 'match' with HUnit and QuickCheck.
 
-
-
+-- Copied from prop_accept
+prop_match :: Property
+prop_match = forAllShrinkShow arbitrary shrink display $ \ r ->
+  case genRegExpString r of
+    Just g  -> forAll g $ match r
+    Nothing -> property $ isVoid r
 
 
 
@@ -659,6 +686,8 @@ runTests = do
  quickCheck prop_append
  putStrLn "Checking alt"
  quickCheck prop_alt
+ putStrLn "Checking match"
+ quickCheck prop_match
 
 
 
