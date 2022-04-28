@@ -26,7 +26,9 @@ source-repository head
 library
   exposed-modules:
       ImageLoader
+      Interpreter
       Lib
+      PietTypes
   other-modules:
       Paths_piet_interpreter
   hs-source-dirs:

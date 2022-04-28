@@ -7,9 +7,7 @@ import Codec.Picture
 path :: String
 path = "../images/hw.gif"
 
-readPixels = do
-    image <- readImage path
-    return convertRGBA8 <$> image
+readPixels = undefined
 
 
 
