@@ -70,12 +70,12 @@ evalIOInstr state@(State {_stack = Stack stk@(x:xs)}) instr = case instr of
         IntIn -> do
                     putStr "Input Int: "
                     n <- getLine
-                    return state {_stack = Stack (n : stk)}
+                    return state {_stack = Stack (((read n) :: Int) : stk)}
         CharOut -> do
                     putChar $ chr x
                     return state
         IntOut -> do
-                    putStrLn $ (show x)
+                    putStrLn $ show x
                     return state
 
 
