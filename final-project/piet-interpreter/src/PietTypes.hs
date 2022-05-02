@@ -9,12 +9,9 @@ import Data.Vector ((!), (!?))
 
 type Vector = Vec.Vector
 
--- The Piet stack can hold either integers or characters
-data Value = PInt Int | PChr Char deriving (Show)
-
 type CodelSize = Int
 
-newtype Stack = Stack [Value] deriving (Show)
+newtype Stack = Stack [Int] deriving (Show)
 newtype DirectionPtr = DP { _dpdir :: Int }
 newtype CodelChooser = CC { _ccdir :: Int }
 

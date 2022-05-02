@@ -4,7 +4,7 @@ import Control.Lens
 import PietTypes
 import ImageLoader
 import Data.Vector ((!), (!?))
-
+import Data.Char (ord, chr)
 -- Rotates direction pointer 
 rotate :: DirectionPtr -> Int -> DirectionPtr
 rotate (DP x) y = DP $ (x + y) `mod` 4
@@ -35,36 +35,30 @@ nextCodel (State {_dp = dp, _cc = cc, _row = r, _col = c}) cs =
 evalUnaryStackInstr :: ProgramState -> PietInstr -> ProgramState
 evalUnaryStackInstr state@(State {_cb = cb, _stack = Stack stk@(x:xs)}) instr = 
     case instr of
-        Push -> state {_stack = (Stack $ (PInt cb) : stk)}
+        Push -> state {_stack = (Stack (cb : stk))}
         Pop -> state {_stack = (Stack xs)}
         Not -> case x of 
-            (PInt 0) -> state {_stack = (Stack $ (PInt 1) : xs)} 
-            _ -> state {_stack = Stack ((PInt 0) : xs)}
+            0 -> state {_stack = Stack (1 : xs)} 
+            _ -> state {_stack = Stack (0 : xs)}
         _ -> error "Invalid instruction supplied"
 evalUnaryStackInstr _ _ = error "Not enough arguments on stack"
 
 evalPointerInstr :: ProgramState -> PietInstr -> ProgramState
 evalPointerInstr state@(State {_cb = cb, _stack = Stack stk@(x:xs)}) instr = 
     case instr of 
-        Ptr -> case x of 
-            (PInt v) -> state {_stack = Stack xs, _dp = rotate _dp v}
-            _ -> error "Top stack argument is not an integer"
-        Switch -> case x of 
-            (PInt v) -> state {_stack = Stack xs, _cc = switch _cc v}
-            _ -> error "Top stack argument is not an integer"
+        Ptr -> state {_stack = Stack xs, _dp = rotate _dp x}
+        Switch -> state {_stack = Stack xs, _cc = switch _cc v}
         _ -> error "Invalid instruction supplied"
 
 evalBinaryStackInstr :: ProgramState -> PietInstr -> ProgramState
-evalBinaryStackInstr state@(State {_stack = Stack (x:y:xs)}) instr = case (x, y) of
-    (PInt a, PInt b) -> case instr of 
-        Add -> state {_stack = Stack $ (PInt $ a + b) : xs}
-        Sub -> state {_stack = Stack $ (PInt $ a - b) : xs}
-        Mul -> state {_stack = Stack $ (PInt $ a * b) : xs}
-        Div -> state {_stack = Stack $ (PInt (fst (divMod a b))) : xs}
-        Mod -> state {_stack = Stack $ (PInt (snd (divMod a b))) : xs}
-        Grt -> state {_stack = Stack $ (PInt (if b > a then 1 else 0)) : xs}
+evalBinaryStackInstr state@(State {_stack = Stack (x:y:xs)}) instr = case instr of 
+        Add -> state {_stack = Stack $ (x + y) : xs}
+        Sub -> state {_stack = Stack $ (x - y) : xs}
+        Mul -> state {_stack = Stack $ (x * y) : xs}
+        Div -> state {_stack = Stack $ (fst (divMod x y)) : xs}
+        Mod -> state {_stack = Stack $ (snd (divMod x y)) : xs}
+        Grt -> state {_stack = Stack $ (if y > x then 1 else 0) : xs}
         _ -> error "Invalid binary operation"
-    _ -> error "Type error"
 evalBinaryStackInstr _ _ = error "Not enough arguments on stack"
 
 evalIOInstr :: ProgramState -> PietInstr -> IO (ProgramState)
@@ -72,15 +66,16 @@ evalIOInstr state@(State {_stack = Stack stk@(x:xs)}) instr = case instr of
         CharIn -> do
                     putStr "Input Char: "
                     c <- getChar
-                    return state {_stack = Stack $ (PChr c) : stk}
+                    return state {_stack = Stack (ord c : stk)}
         IntIn -> do
                     putStr "Input Int: "
                     n <- getLine
-                    return state {_stack = Stack $ (PInt ((read n) :: Int)) : stk}
-        instr | instr == CharOut || instr == IntOut -> do
-                    case x of 
-                        (PInt n) -> putStrLn (show n)
-                        (PChr c) -> putStrLn (show c)
+                    return state {_stack = Stack (n : stk)}
+        CharOut -> do
+                    putChar $ chr x
+                    return state
+        IntOut -> do
+                    putStrLn $ (show x)
                     return state
 
 
@@ -93,8 +88,9 @@ interp prog state cs = do
     
     -- Safe indexing of pixel matrix
     let row1 = prog !? r1
-    case row1 of 
-        (Just vec) -> 
+    let p1 = case row1 of 
+        (Just vec) -> case (vec !? c1) of 
+
     let row2 = prog !? r2
     p2 <- row2 !? c2
 
