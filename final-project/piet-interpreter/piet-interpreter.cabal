@@ -36,6 +36,8 @@ library
   build-depends:
       JuicyPixels
     , base >=4.7 && <5
+    , lens
+    , vector
   default-language: Haskell2010
 
 executable piet-interpreter-exe
@@ -48,7 +50,9 @@ executable piet-interpreter-exe
   build-depends:
       JuicyPixels
     , base >=4.7 && <5
+    , lens
     , piet-interpreter
+    , vector
   default-language: Haskell2010
 
 test-suite piet-interpreter-test
@@ -62,5 +66,7 @@ test-suite piet-interpreter-test
   build-depends:
       JuicyPixels
     , base >=4.7 && <5
+    , lens
     , piet-interpreter
+    , vector
   default-language: Haskell2010
