@@ -7,9 +7,6 @@ import qualified Data.Vector as Vec
 import Data.Vector ((!))
 import PietTypes
 
-path :: String
-path = "/home/philip2000/Documents/CMSC488B/final-project/piet-interpreter/images/hw1.gif"
-
 special :: [PixelRGB8]
 special = [PixelRGB8 255 255 255, PixelRGB8 0 0 0];
 
@@ -20,20 +17,31 @@ colorTable = Vec.fromList [PixelRGB8 255 192 192, PixelRGB8 255 255 192, PixelRG
     PixelRGB8 0 0 255, PixelRGB8 255 0 255, PixelRGB8 192 0 0, PixelRGB8 192 192 0, 
     PixelRGB8 0 192 0, PixelRGB8 0 192 192, PixelRGB8 0 0 192, PixelRGB8 192 0 192]
 
-readAndConvertImg :: FilePath -> IO (Either String (Image PixelRGB8))
-readAndConvertImg path = do
-    res <- readImage path
-    case res of
-        Right img -> return (Right $ convertRGB8 img)
-        Left err -> return $ Left err
-
-imgToPixelRGB8s :: Image PixelRGB8 -> Vector (Vector PixelRGB8)
+imgToPixelRGB8s :: Image PixelRGB8 -> ImageGrid
 imgToPixelRGB8s img@(Image w h _) = Vec.fromList [
     Vec.fromList [pixelAt img x y | x <- [0..w-1]] | y <- [0..h-1]
      ]
 
+imageToProgram :: FilePath -> CodelSize -> IO (Either String PietProgram)
+imageToProgram path cs = do
+    res <- readImage path
+    case res of
+        Left err -> return $ Left err
+        Right img -> let conv = imgToPixelRGB8s $ convertRGB8 img in
+            return $ Right (configureProgram conv cs)
+
+configureProgram :: ImageGrid -> CodelSize -> PietProgram
+configureProgram img cs | Vec.length img < 1 = error "Image is empty"
+configureProgram img cs | Vec.length (img ! 0) < 1 = error "Image is empty"
+configureProgram img cs = Prog {
+    _grid = img, 
+    _height = Vec.length img,
+    _width = Vec.length (img ! 0),
+    _cs = cs
+} 
+
 -- Determines the ratio of a codel to pixel to make interpreting more efficient
-determineCodelSize :: Vector (Vector PixelRGB8) -> Int
+determineCodelSize :: ImageGrid -> Int
 determineCodelSize img = undefined
 
 -- Indexes the color table vector using ki + j where k = 6
@@ -47,6 +55,6 @@ decodeInstr p1 p2 =
         (Just i1, Just i2) ->
                 let (r1, c1) = divMod i1 6 in
                 let (r2, c2) = divMod i2 6 in
-                let (lightDiff, hueDiff) = ((r1 - r2) `mod` 3, (c1 - c2) `mod` 6) in
+                let (lightDiff, hueDiff) = ((r2 - r1) `mod` 3, (c2 - c1) `mod` 6) in
                 cmdTable ! (6 * lightDiff + hueDiff)
         _ -> Nop

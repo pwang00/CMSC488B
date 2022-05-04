@@ -3,8 +3,14 @@ module Interpreter where
 import Control.Lens
 import PietTypes
 import ImageLoader
+import Codec.Picture
 import Data.Vector ((!), (!?))
 import Data.Char (ord, chr)
+import Data.Function (on)
+import Data.List
+import Data.Monoid
+import Data.Foldable
+
 -- Rotates direction pointer 
 rotate :: DirectionPtr -> Int -> DirectionPtr
 rotate (DP x) y = DP $ (x + y) `mod` 4
@@ -12,24 +18,65 @@ rotate (DP x) y = DP $ (x + y) `mod` 4
 switch :: CodelChooser -> CodelChooser
 switch (CC x) = CC $ (x + 1) `mod` 2
 
-determineInstrType :: PietInstr -> InstrType
+{-determineInstrType :: PietInstr -> InstrType
 determineInstrType instr | elem instr unaryStackOps = UStack
 determineInstrType instr | elem instr binaryStackOps = BStack
 determineInstrType instr | elem instr pointerOps = Pointer
 determineInstrType instr | elem instr inOutOps = InOut
+determineInstrType _ = Noop-}
 
-nextCodel :: ProgramState -> CodelSize -> (Int, Int)
-nextCodel (State {_dp = dp, _cc = cc, _row = r, _col = c}) cs = 
-    case (dp, cc) of
-        ((DP dpRight), (CC ccLeft)) -> (r - cs, c)
-        ((DP dpRight), (CC ccRight)) -> (r + cs, c)
-        ((DP dpDown), (CC ccLeft)) -> (r, c + cs)
-        ((DP dpDown), (CC ccRight)) -> (r, c - cs)
-        ((DP dpLeft), (CC ccLeft)) -> (r + cs, c)
-        ((DP dpLeft), (CC ccRight)) -> (r + cs, c)
-        ((DP dpUp), (CC ccLeft)) -> (r, c - cs)
-        ((DP dpUp), (CC ccRight)) -> (r, c + cs)
+initialState = State {
+    _stack = Stack [], 
+    _dp = DP 0, 
+    _cc = CC 0,
+    _pos = (0, 0),
+    _cb = 0, -- Number of codels in the current color block
+    _ctr = 0 -- Terminates the program if 8 attempts are made
+}
 
+checkBoundaries :: PietProgram -> Position -> Bool
+checkBoundaries prog (row, col) = 
+    (row >= 0 && row <= _height prog && col >= 0 && col <= _width prog)
+
+-- Finds all codels in a color block
+bfsCodel :: PietProgram -> Position -> PixelRGB8 -> [Position]
+bfsCodel prog@(Prog {_grid = grid, _cs = cs}) pos@(r, c) pixel = 
+    nub $ (aux grid [] pos) where
+        aux grid seen pos = 
+            if (checkBoundaries prog pos) && (grid ! r ! c) == pixel 
+                && not (elem pos seen) then 
+                    pos : (concatMap (aux grid (pos : seen)) adjacencies) else [] where 
+                        adjacencies = [(r - cs, c), (r + cs, c), (r, c + cs), (r, c - cs)]
+
+codelFromPositions :: [Position] -> ProgramState -> Position
+codelFromPositions coords state@(State{ _pos = (r, c), _dp = dp, _cc = cc}) =
+    let cond = case dp of 
+            (DP 0) -> case cc of 
+                (CC 0) -> maxCol <> minRow
+                (CC 1) -> maxCol <> maxRow
+            (DP 1) -> case cc of 
+                (CC 0) -> maxRow <> minCol
+                (CC 1) -> maxRow <> maxCol
+            (DP 2) -> case cc of
+                (CC 0) -> minCol <> maxRow
+                (CC 1) -> minCol <> minRow
+            (DP 3) -> case cc of
+                (CC 0) -> minRow <> minCol
+                (CC 1) -> minRow <> maxCol
+            where 
+                minRow = (flip compare `on` fst)
+                minCol = (flip compare `on` snd)
+                maxRow = (compare `on` fst)
+                maxCol = (compare `on` snd) in
+    maximumBy cond coords
+
+nextColorBlockCoords :: PietProgram -> ProgramState -> Position
+nextColorBlockCoords prog@(Prog {_cs = cs}) state@(State {_pos = (r, c), _dp = dp}) = 
+    case dp of 
+        (DP 0) -> (r, c + cs)
+        (DP 1) -> (r + cs, c)
+        (DP 2) -> (r, c - cs)
+        (DP 3) -> (r - cs, c)
 
 -- Unary arithmetic ops that 
 evalUnaryStackInstr :: ProgramState -> PietInstr -> ProgramState
@@ -44,25 +91,31 @@ evalUnaryStackInstr state@(State {_cb = cb, _stack = Stack stk@(x:xs)}) instr =
 evalUnaryStackInstr _ _ = error "Not enough arguments on stack"
 
 evalPointerInstr :: ProgramState -> PietInstr -> ProgramState
-evalPointerInstr state@(State {_cb = cb, _stack = Stack stk@(x:xs)}) instr = 
+evalPointerInstr state@(State {_cb = cb, _dp = dp, _cc = cc, _stack = Stack stk@(x:xs)}) instr = 
     case instr of 
-        Ptr -> state {_stack = Stack xs, _dp = rotate _dp x}
-        Switch -> state {_stack = Stack xs, _cc = switch _cc v}
+        Ptr -> state {_stack = Stack xs, _dp = rotate dp x}
+        Switch -> state {_stack = Stack xs, _cc = if (x `mod` 2 == 0) then cc else switch cc}
         _ -> error "Invalid instruction supplied"
 
 evalBinaryStackInstr :: ProgramState -> PietInstr -> ProgramState
-evalBinaryStackInstr state@(State {_stack = Stack (x:y:xs)}) instr = case instr of 
+evalBinaryStackInstr state@(State {_stack = Stack (x:y:xs)}) instr = 
+    case instr of 
         Add -> state {_stack = Stack $ (x + y) : xs}
         Sub -> state {_stack = Stack $ (x - y) : xs}
         Mul -> state {_stack = Stack $ (x * y) : xs}
         Div -> state {_stack = Stack $ (fst (divMod x y)) : xs}
         Mod -> state {_stack = Stack $ (snd (divMod x y)) : xs}
         Grt -> state {_stack = Stack $ (if y > x then 1 else 0) : xs}
+        Roll -> state {_stack = Stack $ (cycle y topY) ++ rest} where
+            cycle = drop <> take
+            topY = take y xs
+            rest = drop y xs
         _ -> error "Invalid binary operation"
 evalBinaryStackInstr _ _ = error "Not enough arguments on stack"
 
 evalIOInstr :: ProgramState -> PietInstr -> IO (ProgramState)
-evalIOInstr state@(State {_stack = Stack stk@(x:xs)}) instr = case instr of 
+evalIOInstr state@(State {_stack = Stack stk@(x:xs)}) instr = 
+    case instr of 
         CharIn -> do
                     putStr "Input Char: "
                     c <- getChar
@@ -80,30 +133,25 @@ evalIOInstr state@(State {_stack = Stack stk@(x:xs)}) instr = case instr of
 
 
 -- cs: codel size
-interp :: Program -> ProgramState -> CodelSize -> IO (ProgramState)
-interp prog state@(State {_ctr = 8}) sz = return state
-interp prog state cs = do
-    let (r1, c1) = (_row state, _col state)
-    let (r2, c2) = nextCodel state cs
-    
-    -- Safe indexing of pixel matrix
-    let row1 = prog !? r1
-    let p1 = case row1 of 
-        (Just vec) -> case (vec !? c1) of 
+interp :: PietProgram -> ProgramState -> IO (Either String PietProgram)
+interp prog state@(State {_ctr = 8}) = return $ Right prog
+interp prog state = do
+    let pos@(r, c) = _pos state
+    let grid = _grid prog
+    let currCodel = grid ! r ! c
+    let block = bfsCodel prog pos currCodel
+    let updatedPos = codelFromPositions block 
+    let cb = length block
 
-    let row2 = prog !? r2
-    p2 <- row2 !? c2
+    let coords@(r2, c2) = nextColorBlockCoords prog state
+    let updatedState = state {_cb = cb, _pos = coords}
+    let nextCodel = grid ! r2 ! c2
 
-    let instr = decodeInstr p1 p2
-    let instrtype = determineInstrType instr
+    let instr = decodeInstr currCodel nextCodel
 
-    updatedState <- case instrtype of 
-                        UStack -> return $ evalUnaryStackInstr state instr
-                        BStack -> return $ evalBinaryStackInstr state instr
-                        Pointer -> return $ evalPointerInstr state instr
-                        InOut -> evalIOInstr state instr
+    putStrLn $ show instr
 
-    return updatedState
-
+    interp prog updatedState
+ 
 
 
