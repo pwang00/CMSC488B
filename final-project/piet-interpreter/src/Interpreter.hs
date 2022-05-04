@@ -101,10 +101,10 @@ evalBinaryStackInstr :: ProgramState -> PietInstr -> ProgramState
 evalBinaryStackInstr state@(State {_stack = Stack (x:y:xs)}) instr = 
     case instr of 
         Add -> state {_stack = Stack $ (x + y) : xs}
-        Sub -> state {_stack = Stack $ (x - y) : xs}
+        Sub -> state {_stack = Stack $ (y - x) : xs}
         Mul -> state {_stack = Stack $ (x * y) : xs}
-        Div -> state {_stack = Stack $ (fst (divMod x y)) : xs}
-        Mod -> state {_stack = Stack $ (snd (divMod x y)) : xs}
+        Div -> state {_stack = Stack $ (fst (divMod y x)) : xs}
+        Mod -> state {_stack = Stack $ (snd (divMod y x)) : xs}
         Grt -> state {_stack = Stack $ (if y > x then 1 else 0) : xs}
         Roll -> state {_stack = Stack $ (cycle y topY) ++ rest} where
             cycle = drop <> take
