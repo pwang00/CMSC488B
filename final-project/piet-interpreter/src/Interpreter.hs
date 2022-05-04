@@ -131,6 +131,9 @@ evalIOInstr state@(State {_stack = Stack stk@(x:xs)}) instr =
                     putStrLn $ show x
                     return state
 
+-- For white pixels only
+slide :: PietProgram ->  -> Position
+slide prog pos@(x, y) = case 
 
 -- cs: codel size
 interp :: PietProgram -> ProgramState -> IO (Either String PietProgram)
@@ -144,14 +147,17 @@ interp prog state = do
     let cb = length block
 
     let coords@(r2, c2) = nextColorBlockCoords prog state
-    let updatedState = state {_cb = cb, _pos = coords}
+
+    -- Updates the _cb value with the number of codels in the color block
+    
     let nextCodel = grid ! r2 ! c2
 
     let instr = decodeInstr currCodel nextCodel
 
     putStrLn $ show instr
 
-    interp prog updatedState
+    
+    interp prog state {_cb = cb, _pos = coords}
  
 
 
