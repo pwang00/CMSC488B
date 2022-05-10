@@ -13,10 +13,10 @@ import Data.Foldable
 
 -- Rotates direction pointer 
 rotate :: DirectionPtr -> Int -> DirectionPtr
-rotate (DP x) y = DP $ (x + y) `mod` 4
+rotate (DP x) y = DP $ toEnum (fromEnum x + y `mod` 4)
 
 switch :: CodelChooser -> CodelChooser
-switch (CC x) = CC $ (x + 1) `mod` 2
+switch (CC x) = CC $ toEnum (fromEnum x + 1 `mod` 2)
 
 {-determineInstrType :: PietInstr -> InstrType
 determineInstrType instr | elem instr unaryStackOps = UStack
@@ -27,8 +27,8 @@ determineInstrType _ = Noop-}
 
 initialState = State {
     _stack = Stack [], 
-    _dp = DP 0, 
-    _cc = CC 0,
+    _dp = DP DPRight, 
+    _cc = CC CCLeft,
     _pos = (0, 0),
     _cb = 0, -- Number of codels in the current color block
     _rctr = 0 -- Terminates the program if 8 attempts are made
@@ -51,18 +51,18 @@ bfsCodel prog@(Prog {_grid = grid, _cs = cs}) pos@(r, c) pixel =
 codelFromPositions :: [Position] -> ProgramState -> Position
 codelFromPositions coords state@(State{ _pos = (r, c), _dp = dp, _cc = cc}) =
     let cond = case dp of 
-            (DP 0) -> case cc of 
-                (CC 0) -> maxCol <> minRow
-                (CC 1) -> maxCol <> maxRow
-            (DP 1) -> case cc of 
-                (CC 0) -> maxRow <> minCol
-                (CC 1) -> maxRow <> maxCol
-            (DP 2) -> case cc of
-                (CC 0) -> minCol <> maxRow
-                (CC 1) -> minCol <> minRow
-            (DP 3) -> case cc of
-                (CC 0) -> minRow <> minCol
-                (CC 1) -> minRow <> maxCol
+            (DP DPRight) -> case cc of 
+                (CC CCLeft) -> maxCol <> minRow
+                (CC CCRight) -> maxCol <> maxRow
+            (DP DPDown) -> case cc of 
+                (CC CCLeft) -> maxRow <> minCol
+                (CC CCRight) -> maxRow <> maxCol
+            (DP DPLeft) -> case cc of
+                (CC CCLeft) -> minCol <> maxRow
+                (CC CCRight) -> minCol <> minRow
+            (DP DPUp) -> case cc of
+                (CC CCLeft) -> minRow <> minCol
+                (CC CCRight) -> minRow <> maxCol
             where 
                 minRow = (flip compare `on` fst)
                 minCol = (flip compare `on` snd)
@@ -73,10 +73,10 @@ codelFromPositions coords state@(State{ _pos = (r, c), _dp = dp, _cc = cc}) =
 nextColorBlockCoords :: PietProgram -> ProgramState -> Position
 nextColorBlockCoords prog@(Prog {_cs = cs}) state@(State {_pos = (r, c), _dp = dp}) = 
     case dp of 
-        (DP 0) -> (r, c + cs)
-        (DP 1) -> (r + cs, c)
-        (DP 2) -> (r, c - cs)
-        (DP 3) -> (r - cs, c)
+        (DP DPRight) -> (r, c + cs)
+        (DP DPDown) -> (r + cs, c)
+        (DP DPLeft) -> (r, c - cs)
+        (DP DPUp) -> (r - cs, c)
 
 -- Unary arithmetic ops that 
 evalUnaryStackInstr :: ProgramState -> PietInstr -> ProgramState
@@ -135,10 +135,10 @@ evalIOInstr state@(State {_stack = Stack stk@(x:xs)}) instr =
 slide :: PietProgram -> Position -> DirectionPtr -> Position
 slide prog@(Prog {_grid = grid, _width = width, _height = height}) pos@(x, y) dp =
     case dp of 
-        (DP 0) -> maximumBy (compare `on` fst) rows
-        (DP 1) -> maximumBy (compare `on` snd) cols
-        (DP 2) -> minimumBy (compare `on` fst) rows
-        (DP 3) -> minimumBy (compare `on` snd) cols 
+        (DP DPRight) -> maximumBy (compare `on` fst) rows
+        (DP DPDown) -> maximumBy (compare `on` snd) cols
+        (DP DPLeft) -> minimumBy (compare `on` fst) rows
+        (DP DPUp) -> minimumBy (compare `on` snd) cols 
     where
         rows = [(x', y) | x' <- [0 .. width] , grid ! x' ! y == white]
         cols = [(x, y') | y' <- [0 .. height] , grid ! x ! y' == white]
@@ -152,7 +152,6 @@ interp prog@(Prog {_grid = grid}) state@(State {_rctr = rctr, _pos = pos@(r, c)}
     let block = bfsCodel prog pos currCodel
     let updatedPos = codelFromPositions block 
     let cb = length block
-
     let coords@(r2, c2) = nextColorBlockCoords prog state
 
     let dp = _dp state
@@ -161,7 +160,7 @@ interp prog@(Prog {_grid = grid}) state@(State {_rctr = rctr, _pos = pos@(r, c)}
     -- Updates the _cb value with the number of codels in the color block
     case (checkBoundaries prog coords, rctr `mod` 2) of
         (False, 0) -> interp prog state {_cb = cb, _cc = switch cc, _rctr = rctr + 1, _pos = pos}
-        (False, 1) -> interp prog state {_cb = cb, _dp = rotate dp 1, _rctr = rctr + 1, _pos = pos}
+        (False, 1) -> interp prog state {_cb = cb, _dp = rotate (DP DPDown) 1, _rctr = rctr + 1, _pos = pos}
         (True, _)  -> do
                         let nextCodel = grid ! r2 ! c2
                         putStrLn $ show ((decodeInstr currCodel nextCodel) :: PietInstr)
