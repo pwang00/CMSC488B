@@ -18,22 +18,6 @@ rotate (DP x) y = DP $ toEnum (fromEnum x + y `mod` 4)
 switch :: CodelChooser -> CodelChooser
 switch (CC x) = CC $ toEnum (fromEnum x + 1 `mod` 2)
 
-{-determineInstrType :: PietInstr -> InstrType
-determineInstrType instr | elem instr unaryStackOps = UStack
-determineInstrType instr | elem instr binaryStackOps = BStack
-determineInstrType instr | elem instr pointerOps = Pointer
-determineInstrType instr | elem instr inOutOps = InOut
-determineInstrType _ = Noop-}
-
-initialState = State {
-    _stack = Stack [], 
-    _dp = DP DPRight, 
-    _cc = CC CCLeft,
-    _pos = (0, 0),
-    _cb = 0, -- Number of codels in the current color block
-    _rctr = 0 -- Terminates the program if 8 attempts are made
-}
-
 checkBoundaries :: PietProgram -> Position -> Bool
 checkBoundaries prog (row, col) = 
     (row >= 0 && row < _height prog && col >= 0 && col < _width prog)
