@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Example
       ImageLoader
       Interpreter
       Lib

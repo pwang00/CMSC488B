@@ -22,14 +22,6 @@ imgToPixelRGB8s img@(Image w h _) = Vec.fromList [
     Vec.fromList [pixelAt img x y | x <- [0..w-1]] | y <- [0..h-1]
      ]
 
-imageToProgram :: FilePath -> CodelSize -> IO (Either String PietProgram)
-imageToProgram path cs = do
-    res <- readImage path
-    case res of
-        Left err -> return $ Left err
-        Right img -> let conv = imgToPixelRGB8s $ convertRGB8 img in
-            return $ Right (configureProgram conv cs)
-
 configureProgram :: ImageGrid -> CodelSize -> PietProgram
 configureProgram img cs | Vec.length img < 1 = error "Image is empty"
 configureProgram img cs | Vec.length (img ! 0) < 1 = error "Image is empty"
@@ -40,6 +32,14 @@ configureProgram img cs = Prog {
     _cs = cs
 } 
 
+imageToProgram :: FilePath -> CodelSize -> IO (Either String PietProgram)
+imageToProgram path cs = do
+    res <- readImage path
+    case res of
+        Left err -> return $ Left err
+        Right img -> let conv = imgToPixelRGB8s $ convertRGB8 img in
+            return $ Right (configureProgram conv cs)
+            
 -- Determines the ratio of a codel to pixel to make interpreting more efficient
 determineCodelSize :: ImageGrid -> Int
 determineCodelSize img = undefined

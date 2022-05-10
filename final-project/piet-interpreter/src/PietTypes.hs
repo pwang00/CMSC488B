@@ -1,5 +1,4 @@
 -- Simulates Piet's stack and direction pointer
-{-# LANGUAGE TemplateHaskell, DeriveFunctor #-}
 module PietTypes where
 
 import Control.Monad
@@ -15,7 +14,6 @@ type CodelSize = Int
 newtype Stack = Stack [Int] deriving (Show)
 newtype DirectionPtr = DP { _dpdir :: Int }
 newtype CodelChooser = CC { _ccdir :: Int }
-
 
 type ImageGrid = Vector (Vector PixelRGB8)
 
@@ -34,20 +32,14 @@ data ProgramState = State {
     _cc :: CodelChooser,
     _pos :: Position,
     _cb :: Int, -- Number of codels in the current color block
-    _ctr :: Int -- Terminates the program if 8 attempts are made
-}
+    _rctr :: Int -- Terminates the program if 8 attempts are made
+} deriving (Show)
 
-makeLenses ''ProgramState
-makeLenses ''PietProgram
-
-data Error = TypeError String | StackError String
+data Result = AwaitingIO | Continue | Error String
 
 instance Show CodelChooser where
     show (CC 0) = "CC Left"
     show (CC 1) = "CC Right"
-
-(dpRight, dpDown, dpLeft, dpUp) = (0, 1, 2, 3)
-(ccLeft, ccRight) = (0, 1)
 
 instance Show DirectionPtr where
     show (DP 0) = "DP Right"
@@ -55,6 +47,9 @@ instance Show DirectionPtr where
     show (DP 2) = "DP Left"
     show (DP 3) = "DP Up"
     show (DP x) = show (DP $ x `mod` 4)
+
+white = PixelRGB8 255 255 255
+black = PixelRGB8 0 0 0
 
 data PietInstr = Nop | Push | Pop | Add | Sub | Mul 
                 | Div | Mod | Not | Grt | Ptr | Switch 

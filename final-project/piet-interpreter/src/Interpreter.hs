@@ -31,12 +31,12 @@ initialState = State {
     _cc = CC 0,
     _pos = (0, 0),
     _cb = 0, -- Number of codels in the current color block
-    _ctr = 0 -- Terminates the program if 8 attempts are made
+    _rctr = 0 -- Terminates the program if 8 attempts are made
 }
 
 checkBoundaries :: PietProgram -> Position -> Bool
 checkBoundaries prog (row, col) = 
-    (row >= 0 && row <= _height prog && col >= 0 && col <= _width prog)
+    (row >= 0 && row < _height prog && col >= 0 && col < _width prog)
 
 -- Finds all codels in a color block
 bfsCodel :: PietProgram -> Position -> PixelRGB8 -> [Position]
@@ -91,7 +91,7 @@ evalUnaryStackInstr state@(State {_cb = cb, _stack = Stack stk@(x:xs)}) instr =
 evalUnaryStackInstr _ _ = error "Not enough arguments on stack"
 
 evalPointerInstr :: ProgramState -> PietInstr -> ProgramState
-evalPointerInstr state@(State {_cb = cb, _dp = dp, _cc = cc, _stack = Stack stk@(x:xs)}) instr = 
+evalPointerInstr state@(State {_dp = dp, _cc = cc, _stack = Stack stk@(x:xs)}) instr = 
     case instr of 
         Ptr -> state {_stack = Stack xs, _dp = rotate dp x}
         Switch -> state {_stack = Stack xs, _cc = if (x `mod` 2 == 0) then cc else switch cc}
@@ -132,15 +132,22 @@ evalIOInstr state@(State {_stack = Stack stk@(x:xs)}) instr =
                     return state
 
 -- For white pixels only
-slide :: PietProgram ->  -> Position
-slide prog pos@(x, y) = case 
+slide :: PietProgram -> Position -> DirectionPtr -> Position
+slide prog@(Prog {_grid = grid, _width = width, _height = height}) pos@(x, y) dp =
+    case dp of 
+        (DP 0) -> maximumBy (compare `on` fst) rows
+        (DP 1) -> maximumBy (compare `on` snd) cols
+        (DP 2) -> minimumBy (compare `on` fst) rows
+        (DP 3) -> minimumBy (compare `on` snd) cols 
+    where
+        rows = [(x', y) | x' <- [0 .. width] , grid ! x' ! y == white]
+        cols = [(x, y') | y' <- [0 .. height] , grid ! x ! y' == white]
+
 
 -- cs: codel size
 interp :: PietProgram -> ProgramState -> IO (Either String PietProgram)
-interp prog state@(State {_ctr = 8}) = return $ Right prog
-interp prog state = do
-    let pos@(r, c) = _pos state
-    let grid = _grid prog
+interp prog state@(State {_rctr = 8}) = return $ Right prog
+interp prog@(Prog {_grid = grid}) state@(State {_rctr = rctr, _pos = pos@(r, c)}) = do
     let currCodel = grid ! r ! c
     let block = bfsCodel prog pos currCodel
     let updatedPos = codelFromPositions block 
@@ -148,16 +155,17 @@ interp prog state = do
 
     let coords@(r2, c2) = nextColorBlockCoords prog state
 
+    let dp = _dp state
+    let cc = _cc state
+    -- putStrLn $ "Curr coords: " ++ show pos ++ " Next coords: " ++ show coords
     -- Updates the _cb value with the number of codels in the color block
-    
-    let nextCodel = grid ! r2 ! c2
+    case (checkBoundaries prog coords, rctr `mod` 2) of
+        (False, 0) -> interp prog state {_cb = cb, _cc = switch cc, _rctr = rctr + 1, _pos = pos}
+        (False, 1) -> interp prog state {_cb = cb, _dp = rotate dp 1, _rctr = rctr + 1, _pos = pos}
+        (True, _)  -> do
+                        let nextCodel = grid ! r2 ! c2
+                        putStrLn $ show ((decodeInstr currCodel nextCodel) :: PietInstr)
+                        interp prog state {_cb = cb, _pos = coords}
 
-    let instr = decodeInstr currCodel nextCodel
-
-    putStrLn $ show instr
-
-    
-    interp prog state {_cb = cb, _pos = coords}
- 
 
 
