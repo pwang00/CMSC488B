@@ -128,6 +128,9 @@ slide prog@(Prog {_grid = grid, _width = width, _height = height}) pos@(x, y) dp
         cols = [(x, y') | y' <- [0 .. height] , grid ! x ! y' == white]
 
 
+step :: PietProgram -> ProgramResult
+step = undefined
+
 -- cs: codel size
 interp :: PietProgram -> ProgramState -> IO (Either String PietProgram)
 interp prog state@(State {_rctr = 8}) = return $ Right prog

@@ -20,15 +20,6 @@ newtype CodelChooser = CC { _ccdir :: CCDir } deriving (Show)
 
 type ImageGrid = Vector (Vector PixelRGB8)
 
-data PietProgram = Prog {
-    _grid :: ImageGrid,
-    _width :: Int,
-    _height :: Int,
-    _cs :: Int
-}
-
-type Position = (Int, Int)
-
 data ProgramState = State {
     _stack :: Stack, 
     _dp :: DirectionPtr, 
@@ -38,7 +29,17 @@ data ProgramState = State {
     _rctr :: Int -- Retries counter: program terminates after 8 unsuccessful attempts
 } deriving (Show)
 
-data Result = AwaitingIO | Continue | Error String
+data PietProgram = Prog {
+    _grid :: ImageGrid,
+    _width :: Int,
+    _height :: Int,
+    _cs :: Int, -- Codel size
+    _pstate :: ProgramState
+}
+
+type Position = (Int, Int)
+
+data ProgramResult = AwaitingIO | Continue | Error String
 
 initialState = State {
     _stack = Stack [], 
@@ -48,6 +49,14 @@ initialState = State {
     _cb = 0, -- Number of codels in the current color block
     _rctr = 0 -- Terminates the program if 8 attempts are made
 }
+
+data Hue = Red | Yellow | Green | Cyan | Blue | Magenta deriving (Enum, Eq, Show)
+data Lightness = Light Hue | Regular Hue | Dark Hue deriving (Eq, Show)
+
+instance Enum Lightness where
+    fromEnum (Light _) = 0
+    fromEnum (Regular _) = 1
+    fromEnum (Dark _) = 2
 
 
 data PietInstr = Nop | Push | Pop | Add | Sub | Mul 
