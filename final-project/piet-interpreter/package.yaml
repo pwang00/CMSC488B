@@ -24,6 +24,8 @@ dependencies:
 - JuicyPixels
 - vector
 - lens
+- containers
+- QuickCheck
 
 library:
   source-dirs: src

@@ -25,17 +25,21 @@ source-repository head
 
 library
   exposed-modules:
+      Example
       ImageLoader
       Interpreter
       Lib
       PietTypes
+      Tests
   other-modules:
       Paths_piet_interpreter
   hs-source-dirs:
       src
   build-depends:
       JuicyPixels
+    , QuickCheck
     , base >=4.7 && <5
+    , containers
     , lens
     , vector
   default-language: Haskell2010
@@ -49,7 +53,9 @@ executable piet-interpreter-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       JuicyPixels
+    , QuickCheck
     , base >=4.7 && <5
+    , containers
     , lens
     , piet-interpreter
     , vector
@@ -65,7 +71,9 @@ test-suite piet-interpreter-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       JuicyPixels
+    , QuickCheck
     , base >=4.7 && <5
+    , containers
     , lens
     , piet-interpreter
     , vector

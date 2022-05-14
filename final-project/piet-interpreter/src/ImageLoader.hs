@@ -59,3 +59,14 @@ decodeInstr p1 p2 =
                 let (lightDiff, hueDiff) = ((r2 - r1) `mod` 3, (c2 - c1) `mod` 6) in
                 cmdTable ! (6 * lightDiff + hueDiff)
         _ -> Nop
+
+
+lightnessSteps :: Lightness -> Lightness -> Maybe Int
+lightnessSteps l1 l2 | l1 == White || l2 == White = Nothing
+lightnessSteps l1 l2 | l1 == Black || l2 == Black = Nothing
+lightnessSteps l1 l2 = undefined
+
+decodeInstr2 :: Lightness -> Lightness -> PietInstr
+decodeInstr2 l1 l2 | l1 == White || l2 == White = Nop
+decodeInstr2 l1 l2 | l1 == Black || l2 == Black = Nop
+decodeInstr2 l1 l2 = undefined
