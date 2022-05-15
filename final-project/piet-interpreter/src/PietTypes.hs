@@ -7,6 +7,7 @@ import Control.Monad
 import qualified Data.Vector as Vec
 import Codec.Picture.Types
 import Control.Lens
+import Control.Monad.Trans.State
 import Data.Vector ((!), (!?))
 
 type Vector = Vec.Vector
@@ -17,11 +18,14 @@ type Position = (Int, Int)
 data DPDir = DPRight | DPDown | DPLeft | DPUp deriving (Enum, Eq, Show)
 data CCDir = CCLeft | CCRight deriving (Enum, Eq, Show)
 
+data Hue = Red | Yellow | Green | Cyan | Blue | Magenta deriving (Enum, Eq, Show)
+data Lightness = Light Hue | Reg Hue | Dark Hue | Black | White deriving (Eq, Show)
+
 newtype Stack = Stack [Int] deriving (Show)
 newtype DirectionPtr = DP { _dpdir :: DPDir } deriving (Eq, Show)
 newtype CodelChooser = CC { _ccdir :: CCDir } deriving (Eq, Show)
 
-type ImageGrid = Vector (Vector PixelRGB8)
+type ImageGrid = Vector (Vector Lightness)
 
 data ProgramState = State {
   _stack :: Stack, 
@@ -56,16 +60,15 @@ initialState = State {
 
 --newtype PietMT m a = PietMT { runPiet :: m (PietMT)}
 
-data Hue = Red | Yellow | Green | Cyan | Blue | Magenta deriving (Enum, Eq, Show)
-data Lightness = Light Hue | Regular Hue | Dark Hue | Black | White deriving (Eq, Show)
+type PietMT = StateT PietProgram IO
 
 instance Enum Lightness where
   fromEnum (Light _) = 0
-  fromEnum (Regular _) = 1
+  fromEnum (Reg _) = 1
   fromEnum (Dark _) = 2
 
   toEnum 0 = Light Red
-  toEnum 1 = Regular Red
+  toEnum 1 = Reg Red
   toEnum 2 = Dark Red
 
 data PietInstr = Nop | Push | Pop | Add | Sub | Mul 

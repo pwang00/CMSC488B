@@ -13,7 +13,9 @@ example = do
     res <- imageToProgram path 1
     case res of
         (Left err) -> return $ Left err
-        (Right img) -> interp img initialState
+        (Right img) -> do
+            finalState <- step img initialState
+            return $ Right finalState
 
 
     

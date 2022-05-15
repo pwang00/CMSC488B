@@ -27,6 +27,7 @@ dependencies:
 - containers
 - QuickCheck
 - random
+- transformers
 
 library:
   source-dirs: src
