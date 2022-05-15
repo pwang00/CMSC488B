@@ -41,6 +41,7 @@ library
     , base >=4.7 && <5
     , containers
     , lens
+    , random
     , vector
   default-language: Haskell2010
 
@@ -58,6 +59,7 @@ executable piet-interpreter-exe
     , containers
     , lens
     , piet-interpreter
+    , random
     , vector
   default-language: Haskell2010
 
@@ -76,5 +78,6 @@ test-suite piet-interpreter-test
     , containers
     , lens
     , piet-interpreter
+    , random
     , vector
   default-language: Haskell2010

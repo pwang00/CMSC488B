@@ -24,10 +24,12 @@ checkBoundaries prog (row, col) =
   (row >= 0 && row < _height prog && col >= 0 && col < _width prog)
 
 -- Finds all codels in a color block
--- Not sure why 
+-- Not sure why but this is literally slow as fuck for some inputs
+-- Maybe I'll use an O(1) queue or something
 computeBlock :: PietProgram -> Position -> PixelRGB8 -> [Position]
 computeBlock prog@(Prog {_grid = grid, _cs = cs}) pos pixel = 
-  nub $ [pos] ++ floodfill [pos] [] where
+  nub $ floodfill [pos] [pos] where
+    floodfill :: [Position] -> [Position] -> [Position]
     floodfill [] block = block 
     floodfill (top@(r, c) : stack') block = floodfill (adj ++ stack') (adj ++ block) 
         where 
@@ -73,43 +75,43 @@ moveInDir prog@(Prog {_cs = cs}) pos@(r, c) dp =
 
 exec :: ProgramState -> PietInstr -> IO (ProgramState)
 exec state@(State {_stack = stk@(Stack s), _cb = cb, _dp = dp, _cc = cc}) instr = 
-  return $ case instr of 
-    Add -> op2 stk (+)
-    Sub -> op2 stk (-)
-    Mul -> op2 stk (*)
-    Div -> op2 stk (div)
-    Mod -> op2 stk (mod)
-    Not -> op1 stk $ fromEnum . (== 0)
-    Grt -> op2 stk $ (fromEnum .) . (>) -- Should have just quickchecked this shit from the beginning tbh
-    Dup -> dup stk
-    Roll -> roll stk
-    Swi -> chptr stk 0
-    Ptr -> chptr stk 1
-    Push -> state {_stack = Stack (cb : s)}
-    Pop -> pop stk
-    Nop -> state
+  case instr of 
+    Add -> return $ op2 stk (+)
+    Sub -> return $ op2 stk (-)
+    Mul -> return $ op2 stk (*)
+    Div -> return $ op2 stk (div)
+    Mod -> return $ op2 stk (mod)
+    Not -> return $ op1 stk $ fromEnum . (== 0)
+    Grt -> return $ op2 stk $ (fromEnum .) . (>) -- Should have just quickchecked this shit from the beginning tbh
+    Dup -> return $ dup stk
+    Roll -> return $ roll stk
+    Swi -> return $ chptr stk 0
+    Ptr -> return $ chptr stk 1
+    Push -> return $ state {_stack = Stack (cb : s)}
+    Pop -> return $ pop stk
+    Nop -> return $ state
     CharOut -> 
-      do
-        if (length stk) > 0 then 
-          do
-            putChar $ chr (head s)
-            pop stk else state
-    IntOut -> pop stk
-      do
-        if (length stk) > 0 then 
-          do
-            putChar $ show (head s)
-            pop stk else state
+      if (length s) > 0 then
+        do
+          putChar $ chr (head s)
+          return $ (pop stk) 
+      else return $ state
+    IntOut -> 
+      if (length s) > 0 then 
+        do
+          putStr $ show (head s)
+          return $ pop stk 
+      else return $ state
     IntIn -> 
       do 
         putStr "Input Int: "
         n <- getLine
-        state {_stack = Stack (((read n) :: Int) : s)}
+        return $ state {_stack = Stack (((read n) :: Int) : s)}
     CharIn ->
       do
         putStr "Input Char: "
         c <- getChar
-        state {_stack = Stack (ord c : s)}
+        return $ state {_stack = Stack (ord c : s)}
       
 
     where 
@@ -180,32 +182,8 @@ interp prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr, _pos = p
             let nextCodel = grid ! r2 ! c2
             let instr = (decodeInstr currCodel nextCodel)
             let s' = state {_cb = length block} -- intermediate state with color block number updated
-            case instr of 
-                CharIn -> do
-                            let stack@(Stack stk) = _stack s'
-                            putStr "Input Char: "
-                            c <- getChar
-                            interp prog s' {_stack = Stack (ord c : stk), _pos = nextBlockEntry, _rctr = 0}
-                IntIn -> do
-                            let stack@(Stack stk) = _stack s'
-                            putStr "Input Int: "
-                            n <- getLine
-                            interp prog s' {_stack = Stack (((read n) :: Int) : stk), _pos = nextBlockEntry, _rctr = 0}
-                CharOut -> do
-                            let stack@(Stack stk) = _stack s'
-                            if (length stk) > 0 then do
-                                putChar $ chr (head stk)
-                                interp prog s' {_stack = Stack (tail stk), _pos = nextBlockEntry, _rctr = 0} else interp prog s' 
-                IntOut -> do
-                            let stack@(Stack stk) = _stack s'
-                            if (length stk) > 0 then do
-                                putStr $ show (head stk)
-                                interp prog s' {_stack = Stack (tail stk), _pos = nextBlockEntry, _rctr = 0} else interp prog s' 
-
-                _ -> do
-                      
-                      let newState = exec s' instr -- Have to divide by square of codel size
-                      let stack@(Stack stk) = _stack newState
+            newState <- exec s' instr -- Have to divide by square of codel size
+            let stack@(Stack stk) = _stack newState
                       --putStrLn $ show instr ++ " " ++ show (reverse stk::[Int]) ++ " coords: " ++ show nextBlockEntry ++ show cc ++ show dp
-                      interp prog newState{_pos = nextBlockEntry, _rctr = 0}
+            interp prog newState{_pos = nextBlockEntry, _rctr = 0}
 
