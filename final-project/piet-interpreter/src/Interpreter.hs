@@ -24,6 +24,7 @@ checkBoundaries prog (row, col) =
   (row >= 0 && row < _height prog && col >= 0 && col < _width prog)
 
 -- Finds all codels in a color block
+-- Not sure why 
 computeBlock :: PietProgram -> Position -> PixelRGB8 -> [Position]
 computeBlock prog@(Prog {_grid = grid, _cs = cs}) pos pixel = 
   nub $ [pos] ++ floodfill [pos] [] where
@@ -70,9 +71,9 @@ moveInDir prog@(Prog {_cs = cs}) pos@(r, c) dp =
     (DP DPLeft) -> (r, c - cs)
     (DP DPUp) -> (r - cs, c)
 
-exec :: ProgramState -> PietInstr -> ProgramState
+exec :: ProgramState -> PietInstr -> IO (ProgramState)
 exec state@(State {_stack = stk@(Stack s), _cb = cb, _dp = dp, _cc = cc}) instr = 
-  case instr of 
+  return $ case instr of 
     Add -> op2 stk (+)
     Sub -> op2 stk (-)
     Mul -> op2 stk (*)
@@ -86,11 +87,30 @@ exec state@(State {_stack = stk@(Stack s), _cb = cb, _dp = dp, _cc = cc}) instr 
     Ptr -> chptr stk 1
     Push -> state {_stack = Stack (cb : s)}
     Pop -> pop stk
-    CharOut -> pop stk
-    IntOut -> pop stk
-    IntIn -> state
-    CharIn -> state
     Nop -> state
+    CharOut -> 
+      do
+        if (length stk) > 0 then 
+          do
+            putChar $ chr (head s)
+            pop stk else state
+    IntOut -> pop stk
+      do
+        if (length stk) > 0 then 
+          do
+            putChar $ show (head s)
+            pop stk else state
+    IntIn -> 
+      do 
+        putStr "Input Int: "
+        n <- getLine
+        state {_stack = Stack (((read n) :: Int) : s)}
+    CharIn ->
+      do
+        putStr "Input Char: "
+        c <- getChar
+        state {_stack = Stack (ord c : s)}
+      
 
     where 
       -- Unary arithmetic stack ops
@@ -131,24 +151,6 @@ exec state@(State {_stack = stk@(Stack s), _cb = cb, _dp = dp, _cc = cc}) instr 
       rot :: Int -> [a] -> [a]
       rot n xs = take lxs . drop (n `mod` lxs) . cycle $ xs where lxs = length xs
 
-    
-evalIOInstr :: ProgramState -> PietInstr -> IO (ProgramState)
-evalIOInstr state@(State {_stack = Stack stk@(x:xs)}) instr = 
-    case instr of 
-        CharIn -> do
-                    putStr "Input Char: "
-                    c <- getChar
-                    return state {_stack = Stack (ord c : stk)}
-        IntIn -> do
-                    putStr "Input Int: "
-                    n <- getLine
-                    return state {_stack = Stack (((read n) :: Int) : stk)}
-        CharOut -> do
-                    putChar $ chr x
-                    return state
-        IntOut -> do
-                    putStrLn $ show x
-                    return state
 
 interp :: PietProgram -> ProgramState -> IO (Either String PietProgram)
 interp prog state@(State {_rctr = 7}) = return $ Right prog
