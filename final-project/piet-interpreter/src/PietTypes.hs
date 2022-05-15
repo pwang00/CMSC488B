@@ -50,7 +50,7 @@ makeLenses ''PietProgram
 makeLenses ''ProgramState
 
 data Action = Continue | CharInRequest | IntInRequest | CharOutRequest | IntOutRequest | EndProg deriving (Show)
-data Result = Res ProgramState Action deriving Show
+data Result = Res ProgramState Action deriving (Show)
 
 initialState = State {
   _stack = Stack [], 
@@ -66,15 +66,6 @@ initialState = State {
 --newtype PietMT m a = PietMT { runPiet :: m (PietMT)}
 
 type PietMT = StateT PietProgram IO
-
-instance Enum Lightness where
-  fromEnum (Light _) = 0
-  fromEnum (Reg _) = 1
-  fromEnum (Dark _) = 2
-
-  toEnum 0 = Light Red
-  toEnum 1 = Reg Red
-  toEnum 2 = Dark Red
 
 data PietInstr = Nop | Push | Pop | Add | Sub | Mul 
                 | Div | Mod | Not | Grt | Ptr | Swi
