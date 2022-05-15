@@ -18,8 +18,8 @@ data DPDir = DPRight | DPDown | DPLeft | DPUp deriving (Enum, Eq, Show)
 data CCDir = CCLeft | CCRight deriving (Enum, Eq, Show)
 
 newtype Stack = Stack [Int] deriving (Show)
-newtype DirectionPtr = DP { _dpdir :: DPDir } deriving (Show)
-newtype CodelChooser = CC { _ccdir :: CCDir } deriving (Show)
+newtype DirectionPtr = DP { _dpdir :: DPDir } deriving (Eq, Show)
+newtype CodelChooser = CC { _ccdir :: CCDir } deriving (Eq, Show)
 
 type ImageGrid = Vector (Vector PixelRGB8)
 
