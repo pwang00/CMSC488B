@@ -33,7 +33,9 @@ data ProgramState = State {
   _cc :: CodelChooser,
   _pos :: Position,
   _cb :: Int, -- Number of codels in the current color block
-  _rctr :: Int -- Retries counter: program terminates after 8 unsuccessful attempts
+  _rctr :: Int, -- Retries counter: program terminates after 8 unsuccessful attempts
+  _inbuf :: [Int], -- We push and pop to these depending on whether IO is done
+  _outbuf :: [Int]
 } deriving (Show)
 
 data PietProgram = Prog {
@@ -47,7 +49,8 @@ data PietProgram = Prog {
 makeLenses ''PietProgram
 makeLenses ''ProgramState
 
-data ProgramResult = AwaitingIO | Continue | Error String
+data Action = Continue | CharInRequest | IntInRequest | CharOutRequest | IntOutRequest | EndProg deriving (Show)
+data Result = Result ProgramState Action deriving Show
 
 initialState = State {
   _stack = Stack [], 
@@ -55,7 +58,9 @@ initialState = State {
   _cc = CC CCLeft,
   _pos = (0, 0),
   _cb = 0, -- Number of codels in the current color block
-  _rctr = 0 -- Terminates the program if 8 attempts are made
+  _rctr = 0, -- Terminates the program if 8 attempts are made
+  _inbuf = [],
+  _outbuf = []
 }
 
 --newtype PietMT m a = PietMT { runPiet :: m (PietMT)}

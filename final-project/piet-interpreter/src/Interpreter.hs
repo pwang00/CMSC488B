@@ -70,49 +70,54 @@ moveInDir prog@(Prog {_cs = cs}) pos@(r, c) dp =
     (DP DPLeft) -> (r, c - cs)
     (DP DPUp) -> (r - cs, c)
 
-execInstr :: ProgramState -> PietInstr -> IO (ProgramState)
-execInstr state@(State {_stack = stk@(Stack s), _cb = cb, _dp = dp, _cc = cc}) instr = 
-  case instr of 
-    Add -> return $ op2 stk (+)
-    Sub -> return $ op2 stk (-)
-    Mul -> return $ op2 stk (*)
-    Div -> return $ op2 stk (div)
-    Mod -> return $ op2 stk (mod)
-    Not -> return $ op1 stk $ fromEnum . (== 0)
-    Grt -> return $ op2 stk $ (fromEnum .) . (>) 
-    Dup -> return $ dup stk
-    Roll -> return $ roll stk
-    Swi -> return $ chptr stk 0
-    Ptr -> return $ chptr stk 1
-    Push -> return $ state {_stack = Stack (cb : s)}
-    Pop -> return $ pop stk
-    Nop -> return $ state
-    CharOut -> 
-      if (length s) > 0 then
-        do
-          putChar $ chr (head s)
-          return $ (pop stk) 
-      else return $ state
-    IntOut -> 
-      if (length s) > 0 then 
-        do
-          putStr $ show (head s)
-          return $ pop stk 
-      else return $ state
-    IntIn -> 
-      do 
-        putStr "Input Int: "
-        n <- getLine
-        return $ state {_stack = Stack (((read n) :: Int) : s)}
-    CharIn ->
-      do
-        putStr "Input Char: "
-        c <- getChar
-        return $ state {_stack = Stack (ord c : s)}
+execInstr :: ProgramState -> PietInstr -> Result
+execInstr state@(State {_stack = stk@(Stack s), _inbuf = ib, _outbuf = ob}) instr = 
+  let dp = _dp state
+      cc = _cc state
+      cb = _cb state
+      state' = case instr of 
+        Add -> op2 stk (+)
+        Sub -> op2 stk (-)
+        Mul -> op2 stk (*)
+        Div -> op2 stk (div)
+        Mod -> op2 stk (mod)
+        Not -> op1 stk $ fromEnum . (== 0)
+        Grt -> op2 stk $ (fromEnum .) . (>) 
+        Dup -> dup stk
+        Roll -> roll stk
+        Swi -> chptr stk 0 dp cc
+        Ptr -> chptr stk 1 dp cc
+        Push -> state {_stack = Stack (cb : s)}
+        Pop -> pop stk
+        CharIn -> pushBufToStack
+        IntIn -> pushBufToStack
+        IntOut -> pushToOutBuf
+        CharOut -> pushToOutBuf
+        Nop -> state
+    
+      ib' = _inbuf state'
+      ob' = _outbuf state'
+    
+      action = case instr of 
+        CharIn -> if (length ib') == 0 then CharInRequest else Continue
+        CharOut -> if (length ob') == 1 then CharOutRequest else Continue
+        IntIn -> if (length ib') == 0 then IntInRequest else Continue
+        IntOut -> IntOutRequest
+        _ -> Continue in
       
+      Result state' action
 
-    where 
+    where
       -- Unary arithmetic stack ops
+
+      pushBufToStack :: ProgramState
+      pushBufToStack = if (length ib) == 1 then state{_stack = Stack (ib ++ s), _inbuf = []} else state
+
+      pushToOutBuf :: ProgramState
+      pushToOutBuf = if (length s) >= 1 then 
+                        let (x:xs) = s in
+                            state{_stack = Stack xs, _outbuf = [x]} else state
+      
       op1 :: Stack -> (Int -> Int) -> ProgramState
       op1 = \s op -> case s of 
                           Stack (x:xs) -> state {_stack = Stack $ (op x) : xs}
@@ -128,8 +133,8 @@ execInstr state@(State {_stack = stk@(Stack s), _cb = cb, _dp = dp, _cc = cc}) i
                        Stack (x:xs) -> state {_stack = Stack xs}
                        _ -> state
 
-      chptr :: Stack -> Int -> ProgramState
-      chptr = \s t -> case (s, t) of 
+      chptr :: Stack -> Int -> DirectionPtr -> CodelChooser -> ProgramState
+      chptr = \s t dp cc -> case (s, t) of 
                           (Stack (x:xs), 0) -> state {_stack = Stack xs, _cc = switch cc x}
                           (Stack (x:xs), 1) -> state {_stack = Stack xs, _dp = rotate dp x}
                           _ -> state
@@ -166,26 +171,49 @@ recalculateEntry state@(State {_dp = dp, _cc = cc, _rctr = rctr}) block =
               let fixedPos = codelFromPositions block dp cc' in
               state{_pos = fixedPos, _rctr = rctr', _cc = cc'}
 
-step :: PietProgram -> ProgramState -> IO (PietProgram)
-step prog state@(State {_rctr = 7}) = return prog
-step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr, _pos = pos@(r, c)}) = do
+step :: PietProgram -> ProgramState -> Result
+step prog state@(State {_rctr = 7}) = Result state EndProg
+step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr, 
+                                                  _pos = pos@(r, c), _dp = dp, _cc = cc}) =
     let currCodel = grid ! r ! c
-    let block = computeBlock prog pos currCodel
-    let dp = _dp state
-    let cc = _cc state
-    let furthestCodelInBlock = codelFromPositions block dp cc
-    let nextBlockEntry@(r2, c2) = moveInDir prog furthestCodelInBlock dp
+        block = computeBlock prog pos currCodel
+        furthestCodelInBlock = codelFromPositions block dp cc
+        nextBlockEntry@(r2, c2) = moveInDir prog furthestCodelInBlock dp
     -- Updates the _cb value with the number of codels in the color block
-    let colorAtPos = if checkBoundaries prog nextBlockEntry then Just (grid ! r2 ! c2) else Nothing
+        colorAtPos = if checkBoundaries prog nextBlockEntry then Just (grid ! r2 ! c2) else Nothing in
 
     case colorAtPos of
-        Nothing -> step prog $ recalculateEntry state block
-        Just Black -> step prog $ recalculateEntry state block
-        pix -> do
-            let (Just nextCodel) = colorAtPos
-            let instr = (decodeInstr currCodel nextCodel)
-            let s' = state {_cb = length block}
-            newState <- execInstr s' instr
-            let stack@(Stack stk) = _stack newState
-            step prog newState{_pos = nextBlockEntry, _rctr = 0}
+        Nothing -> Result (recalculateEntry state block) Continue
+        Just Black -> Result (recalculateEntry state block) Continue
+        (Just nextCodel) -> let instr = (decodeInstr currCodel nextCodel)
+                                (Result newState res) = execInstr state {_cb = length block} instr in 
+                                Result newState {_pos = nextBlockEntry, _rctr = 0} res
 
+interp :: PietProgram -> Result -> IO (ProgramState)
+interp prog (Result finalState EndProg) = return finalState
+interp prog res@(Result state@(State {_inbuf = ib, _outbuf = ob}) _) = 
+    case res of
+      (Result state Continue) -> interp prog (step prog state)
+      (Result state CharInRequest) -> do
+        x <- getChar
+        interp prog (step prog state{_inbuf = [(ord x)]})
+
+      (Result state' IntInRequest) -> do
+        x <- getLine
+        interp prog (step prog state{_inbuf = [(read x) :: Int]})
+
+      (Result state' CharOutRequest) -> case ob of 
+        [x] -> do
+          putChar $ chr x
+          interp prog (step prog state{_outbuf = []})
+        _ -> do
+          interp prog (Result state{_outbuf = []} Continue)
+
+      (Result state IntOutRequest) -> case ob of 
+        [x] -> do
+          putStr $ show x
+          interp prog (step prog state{_outbuf = []})
+        _ -> do
+          interp prog (Result state{_outbuf = []} Continue)
+            
+      

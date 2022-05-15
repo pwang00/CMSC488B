@@ -6,7 +6,7 @@ import ImageLoader
 import Codec.Picture
 import Data.Vector ((!), (!?))
 path :: String
-path = "/home/philip2000/Documents/CMSC488B/final-project/piet-interpreter/images/piet_pi.png"
+path = "/home/philip2000/Documents/CMSC488B/final-project/piet-interpreter/images/fizzbuzz.png"
 
 example :: IO (Either String PietProgram)
 example = do
@@ -14,8 +14,8 @@ example = do
     case res of
         (Left err) -> return $ Left err
         (Right img) -> do
-            finalState <- step img initialState
-            return $ Right finalState
+            finalState <- interp img (Result initialState Continue)
+            return $ Right img
 
 
     
