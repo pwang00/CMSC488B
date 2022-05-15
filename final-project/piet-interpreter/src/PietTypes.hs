@@ -50,7 +50,7 @@ makeLenses ''PietProgram
 makeLenses ''ProgramState
 
 data Action = Continue | CharInRequest | IntInRequest | CharOutRequest | IntOutRequest | EndProg deriving (Show)
-data Result = Result ProgramState Action deriving Show
+data Result = Res ProgramState Action deriving Show
 
 initialState = State {
   _stack = Stack [], 

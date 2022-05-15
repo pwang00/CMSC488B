@@ -14,7 +14,7 @@ example = do
     case res of
         (Left err) -> return $ Left err
         (Right img) -> do
-            finalState <- interp img (Result initialState Continue)
+            finalState <- interp img (Res initialState Continue)
             return $ Right img
 
 

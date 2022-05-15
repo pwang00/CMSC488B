@@ -102,10 +102,10 @@ execInstr state@(State {_stack = stk@(Stack s), _inbuf = ib, _outbuf = ob}) inst
         CharIn -> if (length ib') == 0 then CharInRequest else Continue
         CharOut -> if (length ob') == 1 then CharOutRequest else Continue
         IntIn -> if (length ib') == 0 then IntInRequest else Continue
-        IntOut -> IntOutRequest
+        IntOut -> if (length ob') == 1 then IntOutRequest else Continue
         _ -> Continue in
       
-      Result state' action
+      Res state' action
 
     where
       -- Unary arithmetic stack ops
@@ -172,7 +172,7 @@ recalculateEntry state@(State {_dp = dp, _cc = cc, _rctr = rctr}) block =
               state{_pos = fixedPos, _rctr = rctr', _cc = cc'}
 
 step :: PietProgram -> ProgramState -> Result
-step prog state@(State {_rctr = 7}) = Result state EndProg
+step prog state@(State {_rctr = 7}) = Res state EndProg
 step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr, 
                                                   _pos = pos@(r, c), _dp = dp, _cc = cc}) =
     let currCodel = grid ! r ! c
@@ -183,37 +183,37 @@ step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr,
         colorAtPos = if checkBoundaries prog nextBlockEntry then Just (grid ! r2 ! c2) else Nothing in
 
     case colorAtPos of
-        Nothing -> Result (recalculateEntry state block) Continue
-        Just Black -> Result (recalculateEntry state block) Continue
+        Nothing -> Res (recalculateEntry state block) Continue
+        Just Black -> Res (recalculateEntry state block) Continue
         (Just nextCodel) -> let instr = (decodeInstr currCodel nextCodel)
-                                (Result newState res) = execInstr state {_cb = length block} instr in 
-                                Result newState {_pos = nextBlockEntry, _rctr = 0} res
+                                (Res newState res) = execInstr state {_cb = length block} instr in 
+                                Res newState {_pos = nextBlockEntry, _rctr = 0} res
 
 interp :: PietProgram -> Result -> IO (ProgramState)
-interp prog (Result finalState EndProg) = return finalState
-interp prog res@(Result state@(State {_inbuf = ib, _outbuf = ob}) _) = 
+interp prog (Res finalState EndProg) = return finalState
+interp prog res@(Res state@(State {_inbuf = ib, _outbuf = ob}) _) = 
     case res of
-      (Result state Continue) -> interp prog (step prog state)
-      (Result state CharInRequest) -> do
+      (Res state Continue) -> interp prog (step prog state)
+      (Res state CharInRequest) -> do
         x <- getChar
         interp prog (step prog state{_inbuf = [(ord x)]})
 
-      (Result state' IntInRequest) -> do
+      (Res state IntInRequest) -> do
         x <- getLine
         interp prog (step prog state{_inbuf = [(read x) :: Int]})
 
-      (Result state' CharOutRequest) -> case ob of 
+      (Res state CharOutRequest) -> case ob of 
         [x] -> do
           putChar $ chr x
           interp prog (step prog state{_outbuf = []})
         _ -> do
-          interp prog (Result state{_outbuf = []} Continue)
+          interp prog (Res state{_outbuf = []} Continue)
 
-      (Result state IntOutRequest) -> case ob of 
+      (Res state IntOutRequest) -> case ob of 
         [x] -> do
           putStr $ show x
           interp prog (step prog state{_outbuf = []})
         _ -> do
-          interp prog (Result state{_outbuf = []} Continue)
+          interp prog (Res state{_outbuf = []} Continue)
             
       
