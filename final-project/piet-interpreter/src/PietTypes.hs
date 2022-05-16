@@ -42,16 +42,15 @@ data PietProgram = Prog {
   _grid :: ImageGrid,
   _width :: Int,
   _height :: Int,
-  _cs :: Int, -- Codel size
-  _pstate :: ProgramState
-} 
+  _cs :: Int -- Codel size
+} deriving (Show)
 
 makeLenses ''PietProgram
 makeLenses ''ProgramState
 
 data Action = Continue | CharInRequest | IntInRequest | CharOutRequest 
               | IntOutRequest | EndProg deriving (Eq, Show)
-              
+
 data Result = Res ProgramState Action deriving (Show)
 
 initialState = State {
@@ -72,13 +71,3 @@ type PietMT = StateT PietProgram IO
 data PietInstr = Nop | Push | Pop | Add | Sub | Mul 
                 | Div | Mod | Not | Grt | Ptr | Swi
                 | Dup | Roll | IntIn | IntOut | CharIn | CharOut deriving (Eq, Show)
-
-white = PixelRGB8 255 255 255
-black = PixelRGB8 0 0 0
-
-cmdTable :: Vector PietInstr
-cmdTable = Vec.fromList $ [Nop, Add, Div, Grt, Dup, CharIn, 
-                        Push, Sub, Mod, Ptr, Roll, IntOut, 
-                        Pop, Mul, Not, Swi, IntIn, CharOut]
-
-

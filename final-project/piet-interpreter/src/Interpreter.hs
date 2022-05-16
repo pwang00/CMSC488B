@@ -112,7 +112,9 @@ execInstr state@(State {_inbuf = ib, _outbuf = ob}) instr =
 
     where
       
-      -- Since we respond to IO from the pure step function, we 
+      -- We need to flush the io buffer onto the stack to ensure that integers are pushed in the correct order
+      -- before performing operations
+
       stk@(Stack s) = _stack (flushIB ib state)
       flushIB :: [Int] -> ProgramState -> ProgramState
       flushIB inBuf st@(State {_stack = (Stack s)}) = st{_stack = Stack (inBuf ++ s), _inbuf = []}
@@ -177,6 +179,8 @@ recalculateEntry state@(State {_dp = dp, _cc = cc, _rctr = rctr}) block =
               let fixedPos = codelFromPositions block dp cc' in
               state{_pos = fixedPos, _rctr = rctr', _cc = cc'}
 
+
+-- Terminates the program if 8 attempts are made to exit the color block without success
 step :: PietProgram -> ProgramState -> Result
 step prog state@(State {_rctr = 8}) = (Res state EndProg)
 step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr, 
@@ -185,8 +189,9 @@ step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr,
         block = computeBlock prog pos currCodel
         furthestCodelInBlock = codelFromPositions block dp cc
         nextBlockEntry@(r2, c2) = moveInDir prog furthestCodelInBlock dp
-    -- Updates the _cb value with the number of codels in the color block
-        colorAtPos = if checkBoundaries prog nextBlockEntry then Just (grid ! r2 ! c2) else Nothing in
+        colorAtPos = if checkBoundaries prog nextBlockEntry 
+                     then Just (grid ! r2 ! c2) 
+                     else Nothing in
 
     case colorAtPos of
         Nothing -> Res (recalculateEntry state block) Continue
@@ -201,12 +206,10 @@ interp prog (Res state@(State {_inbuf = ib, _outbuf = ob}) action)
   | action == CharInRequest = do
       putStr "Input Char: "
       x <- getChar
-      --putStrLn $ "State after input char: " ++ show (state{_inbuf = [(ord x)]}) ++ "\n"
       interp prog (step prog state{_inbuf = [(ord x)]})
   | action == IntInRequest = do
       putStr "Input Int: "
       x <- getLine
-      --putStrLn $ "State after input int: " ++ show (state{_inbuf = [(read x) :: Int]}) ++ "\n"
       interp prog (step prog state{_inbuf = [(read x) :: Int]})
   | action == CharOutRequest = case ob of 
       [x] -> do

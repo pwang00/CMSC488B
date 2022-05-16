@@ -19,8 +19,7 @@ configureProgram img cs = Prog {
   _grid = img, 
   _height = Vec.length img,
   _width = Vec.length (img ! 0),
-  _cs = cs,
-  _pstate = initialState
+  _cs = cs
 } 
 
 imageToProgram :: FilePath -> CodelSize -> IO (Either String PietProgram)
