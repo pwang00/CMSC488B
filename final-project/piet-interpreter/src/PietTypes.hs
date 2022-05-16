@@ -51,7 +51,7 @@ makeLenses ''ProgramState
 data Action = Continue | CharInRequest | IntInRequest | CharOutRequest 
               | IntOutRequest | EndProg deriving (Eq, Show)
 
-data Result = Res ProgramState Action deriving (Show)
+data PietResult = Res ProgramState Action deriving (Show)
 
 initialState = State {
   _stack = Stack [], 

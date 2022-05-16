@@ -26,6 +26,7 @@ unaryStackOps = [Pop, Push, Not, Dup]
 arithmeticOps = [Add, Sub, Mul, Div, Mod]
 pointerOps = [Ptr, Swi]
 inOutOps = [IntIn, IntOut, CharIn, CharOut]
+initialResult = (Res initialState Continue)
 
 binAOpFromPietOp :: (Integral a) => PietInstr -> (a -> a -> a)
 binAOpFromPietOp instr 
@@ -212,6 +213,32 @@ prop_Output state@(State{_stack = Stack stk, _inbuf = ib, _outbuf = ob, _cb = cb
         ob' = _outbuf state' in
     
   (length stk') == (length stk - 1) && ob' == [x]
+
+-- Checks that the interpreter never tries to search outside of the program grid
+prop_CheckPositionInBounds :: PietProgram -> Int -> Bool
+prop_CheckPositionInBounds prog input = 
+  let transitions = stepN prog initialResult 30 input in
+    all (\(Res st _) -> checkBoundaries prog (_pos st)) transitions
+
+-- Checks that a program terminates after the retries counter reaches 8 or 
+-- if we reach max transitions (currently 30)
+prop_CheckTermination :: PietProgram -> Int -> Bool
+prop_CheckTermination prog input = 
+  let transitions = stepN prog initialResult 30 input in
+    all (\(Res st _) -> _rctr st <= 8) transitions || (length transitions) == 30
+
+--Generates a sequence of states during program execution
+--Similar to interp but we discard IO since we can simulate it 
+--By having quickCheck generate a random number and pushing it to the stack
+stepN :: PietProgram -> PietResult -> Int -> Int -> [PietResult]
+stepN prog (Res state action) 0 _ = []
+stepN prog (Res state EndProg) _ _ = []
+stepN prog res@(Res state action) n input 
+  | action == Continue = (step prog state) : stepN prog res (n - 1) input
+  | action == IntInRequest = (step prog state{_inbuf = [n]}) : stepN prog res (n - 1) input
+  | action == CharInRequest = (step prog state{_inbuf = [n]}) : stepN prog res (n - 1) input
+  | action == IntOutRequest = (step prog state{_outbuf = []}) : stepN prog res (n - 1) input
+  | action == CharOutRequest = (step prog state{_outbuf = []}) : stepN prog res (n - 1) input
 
 return []
 runTests :: IO Bool

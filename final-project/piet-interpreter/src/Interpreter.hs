@@ -70,7 +70,7 @@ moveInDir prog@(Prog {_cs = cs}) pos@(r, c) dp =
     (DP DPLeft) -> (r, c - cs)
     (DP DPUp) -> (r - cs, c)
 
-execInstr :: ProgramState -> PietInstr -> Result
+execInstr :: ProgramState -> PietInstr -> PietResult
 execInstr state@(State {_inbuf = ib, _outbuf = ob}) instr = 
   let dp = _dp state
       cc = _cc state
@@ -181,7 +181,7 @@ recalculateEntry state@(State {_dp = dp, _cc = cc, _rctr = rctr}) block =
 
 
 -- Terminates the program if 8 attempts are made to exit the color block without success
-step :: PietProgram -> ProgramState -> Result
+step :: PietProgram -> ProgramState -> PietResult
 step prog state@(State {_rctr = 8}) = (Res state EndProg)
 step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr, 
                                                   _pos = pos@(r, c), _dp = dp, _cc = cc}) =
@@ -200,7 +200,7 @@ step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr,
                                 (Res newState res) = execInstr state {_cb = length block} instr in 
                                 Res newState {_pos = nextBlockEntry, _rctr = 0} res
 
-interp :: PietProgram -> Result -> IO (ProgramState)
+interp :: PietProgram -> PietResult -> IO (ProgramState)
 interp prog (Res finalState EndProg) = return finalState
 interp prog (Res state@(State {_inbuf = ib, _outbuf = ob}) action)
   | action == CharInRequest = do
