@@ -71,92 +71,98 @@ moveInDir prog@(Prog {_cs = cs}) pos@(r, c) dp =
     (DP DPUp) -> (r - cs, c)
 
 execInstr :: ProgramState -> PietInstr -> Result
-execInstr state@(State {_stack = stk@(Stack s), _inbuf = ib, _outbuf = ob}) instr = 
+execInstr state@(State {_inbuf = ib, _outbuf = ob}) instr = 
   let dp = _dp state
       cc = _cc state
       cb = _cb state
+      flushed = flushIB ib state -- Flushes the input buffer onto the stack
       state' = case instr of 
-        Add -> op2 stk (+)
-        Sub -> op2 stk (-)
-        Mul -> op2 stk (*)
-        Div -> op2 stk (div)
-        Mod -> op2 stk (mod)
-        Not -> op1 stk $ fromEnum . (== 0)
-        Grt -> op2 stk $ (fromEnum .) . (>) 
-        Dup -> dup stk
-        Roll -> roll stk
-        Swi -> chptr stk 0 dp cc
-        Ptr -> chptr stk 1 dp cc
-        Push -> state {_stack = Stack (cb : s)}
-        Pop -> pop stk
-        CharIn -> pushBufToStack
-        IntIn -> pushBufToStack
-        IntOut -> pushToOutBuf
-        CharOut -> pushToOutBuf
-        Nop -> state
+        Add -> op2 stk (+) flushed
+        Sub -> op2 stk (-) flushed
+        Mul -> op2 stk (*) flushed
+        Div -> op2 stk (div) flushed
+        Mod -> op2 stk (mod) flushed
+        Not -> op1 stk (fromEnum . (== 0)) flushed
+        Grt -> op2 stk ((fromEnum .) . (>)) flushed 
+        Dup -> dup stk flushed
+        Roll -> roll stk flushed
+        Swi -> chptr stk 0 dp cc flushed
+        Ptr -> chptr stk 1 dp cc flushed
+        Push -> flushed {_stack = Stack (cb : s)}
+        Pop -> pop stk flushed
+        IntIn -> flushed
+        CharIn -> flushed
+        IntOut -> flushOB s flushed
+        CharOut -> flushOB s flushed
+        Nop -> flushed
     
       ib' = _inbuf state'
       ob' = _outbuf state'
-    
       action = case instr of 
         CharIn -> if (length ib') == 0 then CharInRequest else Continue
         CharOut -> if (length ob') == 1 then CharOutRequest else Continue
         IntIn -> if (length ib') == 0 then IntInRequest else Continue
         IntOut -> if (length ob') == 1 then IntOutRequest else Continue
-        _ -> Continue in
+        _ -> Continue 
+
+      updatedState = state'{_inbuf = []} in
       
-      Res state' action
+      
+      Res updatedState action
 
     where
-      -- Unary arithmetic stack ops
-
-      pushBufToStack :: ProgramState
-      pushBufToStack = if (length ib) == 1 then state{_stack = Stack (ib ++ s), _inbuf = []} else state
-
-      pushToOutBuf :: ProgramState
-      pushToOutBuf = if (length s) >= 1 then 
-                        let (x:xs) = s in
-                            state{_stack = Stack xs, _outbuf = [x]} else state
       
-      op1 :: Stack -> (Int -> Int) -> ProgramState
-      op1 = \s op -> case s of 
+      -- Since we respond to IO from the pure step function, we 
+      stk@(Stack s) = _stack (flushIB ib state)
+      flushIB :: [Int] -> ProgramState -> ProgramState
+      flushIB inBuf st@(State {_stack = (Stack s)}) = st{_stack = Stack (inBuf ++ s), _inbuf = []}
+
+      flushOB :: [Int] -> ProgramState -> ProgramState
+      flushOB s' st = if (length s') >= 1 then 
+                        let (x:xs) = s' in
+                            st{_stack = Stack xs, _outbuf = [x]} else st
+      
+      -- Unary arithmetic stack ops
+      op1 :: Stack -> (Int -> Int) -> ProgramState -> ProgramState
+      op1 = \s op st -> case s of 
                           Stack (x:xs) -> state {_stack = Stack $ (op x) : xs}
-                          _ -> state
+                          _ -> st 
       -- Binary arithmetic stack ops
-      op2 :: Stack -> (Int -> Int -> Int) -> ProgramState
-      op2 = \s op -> case s of 
-                          Stack (x:y:xs) -> state {_stack = Stack $ (y `op` x):xs}
-                          _ -> state
+      op2 :: Stack -> (Int -> Int -> Int) -> ProgramState -> ProgramState
+      op2 = \s op st -> case s of 
+                          Stack (x:y:xs) -> st {_stack = Stack $ (y `op` x):xs}
+                          _ -> st
 
-      pop :: Stack -> ProgramState
-      pop = \s -> case s of 
-                       Stack (x:xs) -> state {_stack = Stack xs}
-                       _ -> state
+      pop :: Stack -> ProgramState -> ProgramState
+      pop = \s st -> case s of 
+                       Stack (x:xs) -> st {_stack = Stack xs}
+                       _ -> st
 
-      chptr :: Stack -> Int -> DirectionPtr -> CodelChooser -> ProgramState
-      chptr = \s t dp cc -> case (s, t) of 
-                          (Stack (x:xs), 0) -> state {_stack = Stack xs, _cc = switch cc x}
-                          (Stack (x:xs), 1) -> state {_stack = Stack xs, _dp = rotate dp x}
-                          _ -> state
+      chptr :: Stack -> Int -> DirectionPtr -> CodelChooser -> ProgramState -> ProgramState
+      chptr = \s t dp cc st -> case (s, t) of 
+                          (Stack (x:xs), 0) -> st {_stack = Stack xs, _cc = switch cc x}
+                          (Stack (x:xs), 1) -> st {_stack = Stack xs, _dp = rotate dp x}
+                          _ -> st
 
-      dup :: Stack -> ProgramState
-      dup = \s -> case s of 
+      dup :: Stack -> ProgramState -> ProgramState
+      dup = \s st -> case s of 
                         Stack (x:xs) -> state {_stack = Stack (x:x:xs)}
                         _ -> state
  
-      roll :: Stack -> ProgramState
-      roll = \s -> case s of
+      roll :: Stack -> ProgramState -> ProgramState
+      roll = \s st -> case s of
                       (Stack (x:y:xs)) -> 
                         let (rolls, depth) = (x, y)
                             (topY, rest) = (take depth xs, drop depth xs) in
-                            if (depth < 0) then state 
-                            else state {_stack = Stack $ (rot x topY) ++ rest}
-                      _ -> state
+                            if (depth < 0) then st 
+                            else st {_stack = Stack $ (rot x topY) ++ rest}
+                      _ -> st
 
       rot :: Int -> [a] -> [a]
       rot n xs = take lxs . drop (n `mod` lxs) . cycle $ xs where lxs = length xs
 
--- Case for when out of bounds or encountering a black block
+-- Cases for when out of bounds or encountering a black block
+-- Order to update dp / cc goes: update dp -> rctr + 1 -> update cc, etc
 recalculateEntry :: ProgramState -> [Position] -> ProgramState
 recalculateEntry state@(State {_dp = dp, _cc = cc, _rctr = rctr}) block =
     let dp' = rotate dp 1
@@ -172,7 +178,7 @@ recalculateEntry state@(State {_dp = dp, _cc = cc, _rctr = rctr}) block =
               state{_pos = fixedPos, _rctr = rctr', _cc = cc'}
 
 step :: PietProgram -> ProgramState -> Result
-step prog state@(State {_rctr = 7}) = Res state EndProg
+step prog state@(State {_rctr = 8}) = (Res state EndProg)
 step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr, 
                                                   _pos = pos@(r, c), _dp = dp, _cc = cc}) =
     let currCodel = grid ! r ! c
@@ -191,29 +197,29 @@ step prog@(Prog {_grid = grid, _cs = cs}) state@(State {_rctr = rctr,
 
 interp :: PietProgram -> Result -> IO (ProgramState)
 interp prog (Res finalState EndProg) = return finalState
-interp prog res@(Res state@(State {_inbuf = ib, _outbuf = ob}) _) = 
-    case res of
-      (Res state Continue) -> interp prog (step prog state)
-      (Res state CharInRequest) -> do
-        x <- getChar
-        interp prog (step prog state{_inbuf = [(ord x)]})
-
-      (Res state IntInRequest) -> do
-        x <- getLine
-        interp prog (step prog state{_inbuf = [(read x) :: Int]})
-
-      (Res state CharOutRequest) -> case ob of 
-        [x] -> do
-          putChar $ chr x
-          interp prog (step prog state{_outbuf = []})
-        _ -> do
-          interp prog (Res state{_outbuf = []} Continue)
-
-      (Res state IntOutRequest) -> case ob of 
-        [x] -> do
-          putStr $ show x
-          interp prog (step prog state{_outbuf = []})
-        _ -> do
-          interp prog (Res state{_outbuf = []} Continue)
-            
+interp prog (Res state@(State {_inbuf = ib, _outbuf = ob}) action)
+  | action == CharInRequest = do
+      putStr "Input Char: "
+      x <- getChar
+      --putStrLn $ "State after input char: " ++ show (state{_inbuf = [(ord x)]}) ++ "\n"
+      interp prog (step prog state{_inbuf = [(ord x)]})
+  | action == IntInRequest = do
+      putStr "Input Int: "
+      x <- getLine
+      --putStrLn $ "State after input int: " ++ show (state{_inbuf = [(read x) :: Int]}) ++ "\n"
+      interp prog (step prog state{_inbuf = [(read x) :: Int]})
+  | action == CharOutRequest = case ob of 
+      [x] -> do
+        putChar $ chr x
+        interp prog (step prog state{_outbuf = []})
+      _ -> do
+        interp prog (step prog state)
+  | action == IntOutRequest = case ob of 
+      [x] -> do
+        putStr $ show x
+        interp prog (step prog state{_outbuf = []})
+      _ -> do
+        putStrLn $ "Buffer: " ++ show ob
+        interp prog (step prog state)
+  | otherwise = interp prog (step prog state)
       

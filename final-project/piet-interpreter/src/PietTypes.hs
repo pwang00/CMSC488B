@@ -49,7 +49,9 @@ data PietProgram = Prog {
 makeLenses ''PietProgram
 makeLenses ''ProgramState
 
-data Action = Continue | CharInRequest | IntInRequest | CharOutRequest | IntOutRequest | EndProg deriving (Show)
+data Action = Continue | CharInRequest | IntInRequest | CharOutRequest 
+              | IntOutRequest | EndProg deriving (Eq, Show)
+              
 data Result = Res ProgramState Action deriving (Show)
 
 initialState = State {
